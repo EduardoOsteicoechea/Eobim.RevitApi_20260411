@@ -12,7 +12,7 @@ public abstract class ExternalCommand<Dto> : IExternalCommand where Dto : new()
     private readonly List<(Action action, TransactionManagementOptions transactionManagementOption)> _actions = [];
     protected abstract void Prepare(); // store the actions with the add method
     protected Dto _dto = new();
-    protected void Add(Action a, TransactionManagementOptions b = TransactionManagementOptions.SingleTransaction)
+    protected void Add(Action a, TransactionManagementOptions b = TransactionManagementOptions.Transactionless)
     {
         _actions.Add((a, b));
     }

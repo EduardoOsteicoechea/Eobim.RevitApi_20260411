@@ -25,6 +25,7 @@ public class Messenger
         _stringBuilder.AppendLine(ex.StackTrace);
 #else
         _stringBuilder.AppendLine(ex.Message);
+        _stringBuilder.AppendLine(ex.StackTrace);
 #endif
     }
 

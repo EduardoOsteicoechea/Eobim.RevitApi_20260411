@@ -1,9 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Windows; // Required for WPF MessageBox
-using System.Windows.Controls;
 using Autodesk.Revit.DB;
 using Eobim.RevitApi.Core;
 
@@ -134,7 +128,7 @@ public static class RevitCurveLoop
 		Document doc,
 		CurveLoop curveLoop,
 		double offset = 1,
-		double segmentLength = .5)
+		double segmentLength = 1)
 	{
 		var segments = new List<CurveLoopSegmentationFrameSegment>();
 
@@ -174,28 +168,28 @@ public static class RevitCurveLoop
 		var rightLineSolid = RevitSolid.SquareBarFromLineAndRadius(rightLine);
 		var topLineSolid = RevitSolid.SquareBarFromLineAndRadius(topLine);
 
-		RevitDirectShape.GenericModelFromSolid(doc, bottomLineSolid);
-		RevitDirectShape.GenericModelFromSolid(doc, leftLineSolid);
-		RevitDirectShape.GenericModelFromSolid(doc, rightLineSolid);
-		RevitDirectShape.GenericModelFromSolid(doc, topLineSolid);
+		//RevitDirectShape.GenericModelFromSolid(doc, bottomLineSolid);
+		//RevitDirectShape.GenericModelFromSolid(doc, leftLineSolid);
+		//RevitDirectShape.GenericModelFromSolid(doc, rightLineSolid);
+		//RevitDirectShape.GenericModelFromSolid(doc, topLineSolid);
 		
 		// 6. Subdivide the Bottom and Left lines into manageable segments
 		List<Line> bottomSubdivisions = SubdivideLine(bottomLine, segmentLength);
 		List<Line> leftSubdivisions = SubdivideLine(leftLine, segmentLength);
 
-		foreach (var subdivision in bottomSubdivisions)
-		{
-			RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SquareBarFromLineAndRadius(subdivision, .05));
-			RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SphereFromXYZAndRadius(subdivision.GetEndPoint(0), .05));
-			RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SphereFromXYZAndRadius(subdivision.GetEndPoint(1), .05));
-		}
+		//foreach (var subdivision in bottomSubdivisions)
+		//{
+		//	RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SquareBarFromLineAndRadius(subdivision, .05));
+		//	RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SphereFromXYZAndRadius(subdivision.GetEndPoint(0), .05));
+		//	RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SphereFromXYZAndRadius(subdivision.GetEndPoint(1), .05));
+		//}
 
-		foreach (var subdivision in leftSubdivisions)
-		{
-			RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SquareBarFromLineAndRadius(subdivision, .05));
-			RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SphereFromXYZAndRadius(subdivision.GetEndPoint(0), .05));
-			RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SphereFromXYZAndRadius(subdivision.GetEndPoint(1), .05));
-		}
+		//foreach (var subdivision in leftSubdivisions)
+		//{
+		//	RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SquareBarFromLineAndRadius(subdivision, .05));
+		//	RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SphereFromXYZAndRadius(subdivision.GetEndPoint(0), .05));
+		//	RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SphereFromXYZAndRadius(subdivision.GetEndPoint(1), .05));
+		//}
 
 		// 7. Generate the perpendicular ray-casting lines spanning the bounding box
 		// For the bottom subdivisions, keep the X from the start point and shoot Y up to finalMaxY
@@ -223,47 +217,126 @@ public static class RevitCurveLoop
 		//}
 
 		// 8. Intersect the horizontal rays (left perpendiculars) with the CurveLoop
-		List<Line> horizontalInterceptionsWithCurveLoop = new List<Line>();
+		List<Line> horizontalInternalSegments = new List<Line>();
 		foreach (var ray in leftPerpendicularSubdivision)
 		{
 			List<Line> internalLines = GetInternalSegments(ray, curveLoop);
 
-			// Visual Debugging
 			foreach (Line line in internalLines)
 			{
 				RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SquareBarFromLineAndRadius(line, .02));
 				RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SphereFromXYZAndRadius(line.GetEndPoint(0), .05));
 				RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SphereFromXYZAndRadius(line.GetEndPoint(1), .05));
 			}
-			//horizontalInterceptionsWithCurveLoop.AddRange(GetInternalSegments(doc, ray, curveLoop));
+
+			horizontalInternalSegments.AddRange(internalLines);
 		}
 
 		// 9. Intersect the vertical rays (bottom perpendiculars) with the CurveLoop
-		List<Line> verticalInterceptionsWithCurveLoop = new List<Line>();
+		List<Line> verticalInternalSegments = new List<Line>();
 		foreach (var ray in bottomPerpendicularSubdivision)
 		{
 			List<Line> internalLines = GetInternalSegments(ray, curveLoop);
 
-			// Visual Debugging
 			foreach (Line line in internalLines)
 			{
 				RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SquareBarFromLineAndRadius(line, .02));
 				RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SphereFromXYZAndRadius(line.GetEndPoint(0), .05));
 				RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SphereFromXYZAndRadius(line.GetEndPoint(1), .05));
 			}
-			//verticalInterceptionsWithCurveLoop.AddRange(GetInternalSegments(doc, ray, curveLoop));
+
+			verticalInternalSegments.AddRange(internalLines);
 		}
 
-		//// --- VISUAL DEBUGGING FOR INTERNAL SEGMENTS ---
-		//// See the actual chopped grid lines inside your boundary
-		//foreach (var internalLine in horizontalInterceptionsWithCurveLoop)
-		//{
-		//	RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SquareBarFromLineAndRadius(internalLine, .02));
-		//}
-		//foreach (var internalLine in verticalInterceptionsWithCurveLoop)
-		//{
-		//	RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SquareBarFromLineAndRadius(internalLine, .02));
-		//}
+		// 10. Find First and Last Intersections for Horizontal Lines using Pure Math
+		List<XYZ> horizontalLinesFirstIntersections = new List<XYZ>();
+		List<XYZ> horizontalLinesLastIntersections = new List<XYZ>();
+
+		foreach (var hLine in horizontalInternalSegments)
+		{
+			// Horizontal lines have a constant Y. We find their X bounds.
+			double minHX = Math.Min(hLine.GetEndPoint(0).X, hLine.GetEndPoint(1).X);
+			double maxHX = Math.Max(hLine.GetEndPoint(0).X, hLine.GetEndPoint(1).X);
+			double fixedHY = hLine.GetEndPoint(0).Y;
+
+			List<XYZ> currentLineIntersections = new List<XYZ>();
+
+			foreach (var vLine in verticalInternalSegments)
+			{
+				// Vertical lines have a constant X. We find their Y bounds.
+				double minVY = Math.Min(vLine.GetEndPoint(0).Y, vLine.GetEndPoint(1).Y);
+				double maxVY = Math.Max(vLine.GetEndPoint(0).Y, vLine.GetEndPoint(1).Y);
+				double fixedVX = vLine.GetEndPoint(0).X;
+
+				// Mathematical Check: Does the vertical X fall within the horizontal X bounds,
+				// and does the horizontal Y fall within the vertical Y bounds?
+				// (1e-5 tolerance added to prevent floating point misses)
+				if (fixedVX >= minHX - 1e-5 && fixedVX <= maxHX + 1e-5 &&
+					fixedHY >= minVY - 1e-5 && fixedHY <= maxVY + 1e-5)
+				{
+					// The intersection is perfectly orthogonal
+					currentLineIntersections.Add(new XYZ(fixedVX, fixedHY, 0));
+				}
+			}
+
+			if (currentLineIntersections.Count > 0)
+			{
+				// Sort horizontally (left to right by X coordinate)
+				var sortedIntersections = currentLineIntersections.OrderBy(p => p.X).ToList();
+
+				XYZ firstPoint = sortedIntersections.First();
+				XYZ lastPoint = sortedIntersections.Last();
+
+				horizontalLinesFirstIntersections.Add(firstPoint);
+				horizontalLinesLastIntersections.Add(lastPoint);
+
+				// --- VISUAL DEBUGGING ---
+				//RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SphereFromXYZAndRadius(firstPoint, .05));
+				//RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SphereFromXYZAndRadius(lastPoint, .05));
+			}
+		}
+
+		// 11. Find First and Last Intersections for Vertical Lines using Pure Math
+		List<XYZ> verticalLinesFirstIntersections = new List<XYZ>();
+		List<XYZ> verticalLinesLastIntersections = new List<XYZ>();
+
+		foreach (var vLine in verticalInternalSegments)
+		{
+			double minVY = Math.Min(vLine.GetEndPoint(0).Y, vLine.GetEndPoint(1).Y);
+			double maxVY = Math.Max(vLine.GetEndPoint(0).Y, vLine.GetEndPoint(1).Y);
+			double fixedVX = vLine.GetEndPoint(0).X;
+
+			List<XYZ> currentLineIntersections = new List<XYZ>();
+
+			foreach (var hLine in horizontalInternalSegments)
+			{
+				double minHX = Math.Min(hLine.GetEndPoint(0).X, hLine.GetEndPoint(1).X);
+				double maxHX = Math.Max(hLine.GetEndPoint(0).X, hLine.GetEndPoint(1).X);
+				double fixedHY = hLine.GetEndPoint(0).Y;
+
+				if (fixedVX >= minHX - 1e-5 && fixedVX <= maxHX + 1e-5 &&
+					fixedHY >= minVY - 1e-5 && fixedHY <= maxVY + 1e-5)
+				{
+					currentLineIntersections.Add(new XYZ(fixedVX, fixedHY, 0));
+				}
+			}
+
+			if (currentLineIntersections.Count > 0)
+			{
+				// Sort vertically (bottom to top by Y coordinate)
+				var sortedIntersections = currentLineIntersections.OrderBy(p => p.Y).ToList();
+
+				XYZ firstPoint = sortedIntersections.First();
+				XYZ lastPoint = sortedIntersections.Last();
+
+				verticalLinesFirstIntersections.Add(firstPoint);
+				verticalLinesLastIntersections.Add(lastPoint);
+
+				// --- VISUAL DEBUGGING ---
+				//RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SphereFromXYZAndRadius(firstPoint, .05));
+				//RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SphereFromXYZAndRadius(lastPoint, .05));
+			}
+		}
 
 		return new CurveLoopSegmentationFrame
 		{

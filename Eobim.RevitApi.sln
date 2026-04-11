@@ -1,0 +1,24 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Eobim.RevitApi", "Eobim.RevitApi.csproj", "{4830E27A-2AB5-494D-39C4-24857D0D59E5}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{4830E27A-2AB5-494D-39C4-24857D0D59E5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4830E27A-2AB5-494D-39C4-24857D0D59E5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4830E27A-2AB5-494D-39C4-24857D0D59E5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4830E27A-2AB5-494D-39C4-24857D0D59E5}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {F2E5D7A0-6573-47AA-B469-DEB18BD6EC89}
+	EndGlobalSection
+EndGlobal

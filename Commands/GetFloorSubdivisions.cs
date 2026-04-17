@@ -1,9 +1,8 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using Eobim.RevitApi.Core;
+using Eobim.RevitApi.Framework;
+using static Eobim.RevitApi.Framework.DtoFormatter;
 using static RevitCurveLoop;
 
 namespace Eobim.RevitApi.Commands;
@@ -14,38 +13,47 @@ public class GetFloorSubdivisions : Framework.ExternalCommand<GetFloorSubdivisio
 	private readonly string INTEREST_FLOOR_MARK = "room_structural_bottom";
 
 	private readonly double CARDBOARD_THICKNESS = UnitUtils.ConvertToInternalUnits(.03, UnitTypeId.Meters);
+
 	private readonly double FLOOR_OUTER_THICKNESS = UnitUtils.ConvertToInternalUnits(.3, UnitTypeId.Meters);
 
 	// --- FAMILY CONSTANTS ---
 	private readonly string CARDBOARD_FAMILY_PATH = @"C:\Users\eduar\Desktop\Room_003\Revit2027\Carboard_Segment_001.rfa";
+
 	private readonly string CARDBOARD_FAMILY_NAME = "Carboard_Segment_001";
+
 	private readonly string CARDBOARD_TYPE_NAME = "Type 1";
 
-	protected override void Prepare()
+	protected override void SetActions()
 	{
-		Add(GetAllFloors);
-		Add(GetInterestFloor);
+        Add(GetAllFloors, true);
+		Add(GetInterestFloorByMarkParameter, true);
 		Add(GetInterestFloorTopFace);
-		Add(GetInterestFloorTopFaceOuterCurveLoop);
-		//Add(GenerateCurveLoopSegmentationFrame);
-		Add(LoadCarboardFamilySymbol);
-		Add(GetBasePlacementLevel);
-		Add(GenerateOuterCurveLoopDisplacedLines);
-		Add(PlaceOuterCarboardFamilyInstances);
-		Add(SetOuterBorderPlacedFamilyInstancesHeight);
-		Add(SetOuterBorderPlacedFamilyInstancesThickness);
+		//Add(GetInterestFloorTopFaceOuterCurveLoop);
+		//Add(ModelOuterCurveLoopPoints, Framework.TransactionManagementOptions.DedicatedTransaction);
+		////Add(GenerateCurveLoopSegmentationFrame);
+		//Add(LoadCarboardFamilySymbol);
+		//Add(GetBasePlacementLevel);
+		//Add(GenerateOuterCurveLoopDisplacedLines, Framework.TransactionManagementOptions.DedicatedTransaction);
+		//Add(PlaceOuterCarboardFamilyInstances, Framework.TransactionManagementOptions.DedicatedTransaction);
+		//Add(SetOuterBorderPlacedFamilyInstancesHeight);
+		//Add(SetOuterBorderPlacedFamilyInstancesThickness);
 
 	}
 
-	public void GetAllFloors()
+    public void GetAllFloors(List<string> _telemetry)
 	{
-		var result = RevitFilteredElementCollector.ByBuiltInCategory<Floor>(_doc!, BuiltInCategory.OST_Floors);
+        var result = RevitFilteredElementCollector.ByBuiltInCategory<Floor>(_doc!, BuiltInCategory.OST_Floors);
+
 		if (result is null) throw new NullReferenceException();
-		if (!result.Any()) throw new ArgumentOutOfRangeException($"Empty collection");
-		_dto.Floors = result;
+
+		if (result.Count.Equals(0)) throw new ArgumentOutOfRangeException($"Empty collection");
+
+        _telemetry.Add($"Floors count: {result.Count}");
+
+        _dto.Floors = result;
 	}
 
-	public void GetInterestFloor()
+	public void GetInterestFloorByMarkParameter(List<string> _telemetry)
 	{
 		var result = _dto.Floors!.FirstOrDefault(a =>
 		{
@@ -58,10 +66,12 @@ public class GetFloorSubdivisions : Framework.ExternalCommand<GetFloorSubdivisio
 
 		if (result is null) throw new NullReferenceException();
 
-		_dto.InterestFloor = result;
+        _telemetry.Add($"Floor: {result.Id} | {result.Name}");
+
+        _dto.InterestFloor = result;
 	}
 
-	public void GetInterestFloorTopFace()
+	public void GetInterestFloorTopFace(List<string> _telemetry)
 	{
 		var result = RevitFace.Top(_dto.InterestFloor!);
 
@@ -82,10 +92,13 @@ public class GetFloorSubdivisions : Framework.ExternalCommand<GetFloorSubdivisio
 	public void ModelOuterCurveLoopPoints()
 	{
 		var points = _dto.OuterCurveLoop!.SelectMany(a => a.Tessellate()).ToList();
+
+		if (points is null) throw new NullReferenceException("Null points.");
+
 		foreach (XYZ item in points)
 		{
 			var sphere = RevitSolid.SphereFromXYZAndRadius(item, .2);
-			RevitDirectShape.GenericModelFromSolid(_doc!, sphere);
+			RevitDirectShape.GenericModelFromSolid(_doc!, sphere, "");
 		}
 	}
 
@@ -127,11 +140,9 @@ public class GetFloorSubdivisions : Framework.ExternalCommand<GetFloorSubdivisio
 	{
 		var result = new List<Line>();
 
-		if (_dto.OuterCurveLoop is null) throw new NullReferenceException("OuterCurveLoop is null.");
+		var curveList = _dto.OuterCurveLoop!.ToList();
 
-		var curveList = _dto.OuterCurveLoop.ToList();
-
-		for (int i = 0; i < curveList.Count; i++)
+		for (int i = 1; i < curveList.Count; i++)
 		{
 			Curve curve = curveList[i];
 
@@ -147,6 +158,8 @@ public class GetFloorSubdivisions : Framework.ExternalCommand<GetFloorSubdivisio
 				// Note: Doing this for every line in the closed loop creates a perfect 
 				// "pinwheel" butt-joint at the corners where no pieces overlap.
 				XYZ newP0 = p0 + direction * CARDBOARD_THICKNESS;
+
+				//RevitDirectShape.GenericModelFromSolid(_doc!, RevitSolid.SphereFromXYZAndRadius(newP0, .1));
 
 				// Safety check: Ensure the line hasn't been shrunk out of existence
 				if (newP0.DistanceTo(p1) > 0.004)
@@ -176,7 +189,7 @@ public class GetFloorSubdivisions : Framework.ExternalCommand<GetFloorSubdivisio
 		{
 			if (curve is Line line && line.Length > 0.004)
 			{
-				result.Add(RevitFamily.PlaceLineBased(
+				result.Add(RevitFamily.PlaceLineBasedTransactionless(
 					_doc!,
 					_dto.CarboardFamilySymbol!,
 					_dto.BasePlacementLevel!,
@@ -208,15 +221,29 @@ public class GetFloorSubdivisions : Framework.ExternalCommand<GetFloorSubdivisio
 	}
 }
 
-public class GetFloorSubdivisionsDto
+public class GetFloorSubdivisionsDto: IDto
 {
-	public List<Floor>? Floors { get; set; }
+	[Print(nameof(TypeFormatter.FloorList))]
+	public List<Floor> Floors { get; set; }
+
 	public Floor? InterestFloor { get; set; }
+
 	public Face? InterestFloorTopFace { get; set; }
+
 	public CurveLoop? OuterCurveLoop { get; set; }
+
 	public List<Line>? OuterCurveLoopDisplacedLines { get; set; }
+
 	public CurveLoopSegmentationFrame? OuterCurveLoopSegmentationFrame { get; set; }
+
 	public FamilySymbol? CarboardFamilySymbol { get; set; }
+
 	public Level? BasePlacementLevel { get; set; }
+
 	public List<FamilyInstance>? OuterBorderPlacedFamilyInstances { get; set; }
+
+	public List<(string, object)> ToObservableObject()
+	{
+		return DtoFormater.FormatAsObject(this);
+	}
 }

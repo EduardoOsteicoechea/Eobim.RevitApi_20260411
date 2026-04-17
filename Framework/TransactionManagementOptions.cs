@@ -3,7 +3,7 @@ namespace Eobim.RevitApi.Framework;
 public enum TransactionManagementOptions
 {
     None = 0,
-    Transactionless = 1,
-    DedicatedTransaction = 2,
-    SingleTransaction = 3,
+    TransactionlessAction = 1,
+    RequiresDedicatedTransactionForAction = 2,
+    RequiresEnclosingTransactionForCommand = 3,
 }

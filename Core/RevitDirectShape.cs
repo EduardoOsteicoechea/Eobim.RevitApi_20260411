@@ -1,4 +1,5 @@
 using Autodesk.Revit.DB;
+using Eobim.RevitApi.Framework;
 
 namespace Eobim.RevitApi.Core;
 
@@ -9,9 +10,10 @@ public static class RevitDirectShape
         Document doc,
         Solid solid,
         string? directShapeName = null
-    )
+
+	)
     {
-        var solidCentroid = solid.ComputeCentroid();
+		var solidCentroid = solid.ComputeCentroid();
         var directShapeCategory = Category.GetCategory(doc, BuiltInCategory.OST_GenericModel);
         var directShape = DirectShape.CreateElement(doc, directShapeCategory.Id);
         directShape.Name = string.IsNullOrEmpty(directShapeName) 

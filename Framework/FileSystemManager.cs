@@ -10,7 +10,7 @@ public class FileSystemManager
     public FileSystemManager(string revitDocumentTitle, string commandName)
     {
         _instanceLogDirectory = Path.Combine(_mainLogDirectory, revitDocumentTitle);
-        _filePath = Path.Combine(_instanceLogDirectory, $"{commandName}.txt");
+        _filePath = Path.Combine(_instanceLogDirectory, $"{commandName}.json");
         ValidateLogDirectory();
     }
     private void ValidateLogDirectory()
@@ -20,7 +20,7 @@ public class FileSystemManager
             Directory.CreateDirectory(_instanceLogDirectory);
         }
     }
-    public void WriteFile(string? content)
+    public void WriteTelemetryFile(string? content)
     {
         if (!string.IsNullOrEmpty(content)) File.WriteAllText(_filePath, content);
     }

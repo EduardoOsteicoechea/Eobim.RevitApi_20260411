@@ -7,12 +7,21 @@ public class FileSystemManager
     private readonly string _mainLogDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Eobim.Logs");
     private readonly string _instanceLogDirectory;
     private string _filePath;
+
     public FileSystemManager(string revitDocumentTitle, string commandName)
     {
         _instanceLogDirectory = Path.Combine(_mainLogDirectory, revitDocumentTitle);
         _filePath = Path.Combine(_instanceLogDirectory, $"{commandName}.json");
         ValidateLogDirectory();
     }
+
+    public FileSystemManager(string revitDocumentTitle, string commandName, string multistepActionName)
+    {
+        _instanceLogDirectory = Path.Combine(_mainLogDirectory, revitDocumentTitle);
+        _filePath = Path.Combine(_instanceLogDirectory, multistepActionName, $"{commandName}.json");
+        ValidateLogDirectory();
+    }
+
     private void ValidateLogDirectory()
     {
         if (!Directory.Exists(_instanceLogDirectory))

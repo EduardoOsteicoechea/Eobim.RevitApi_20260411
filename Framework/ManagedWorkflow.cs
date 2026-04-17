@@ -1,15 +1,64 @@
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using System.Text.Json;
+using System.Windows.Controls;
 
 namespace Eobim.RevitApi.Framework;
 
-public abstract class ExternalCommand<Dto> : IExternalCommand where Dto : class, IDto, new()
+
+public abstract class ExternalCommand<Dto> : ManagedWorkflow<Dto>, IExternalCommand where Dto : class, IDto, new()
 {
+    protected override void SetCriticalVariables()
+    {
+        _doc = _commandData!.Application.ActiveUIDocument.Document;
+
+        _workflowName = this.GetType().Name;
+
+        _fileSystemManager = new FileSystemManager(_doc.Title, _workflowName);
+
+        _workflowObservableData = new WorkflowObservableData
+        {
+            DocumentTitle = _doc.Title,
+            WorkflowName = _workflowName
+        };
+    }
+}
+
+
+public abstract class MultistepObservableAction<Dto, TResult> : ManagedWorkflow<Dto>
+    where Dto : class, IDto, new()
+{
+    public TResult? Result { get; protected set; }
+    public string _parentCommandName { get; protected set; }
+
+    public MultistepObservableAction(Document doc, string parentCommandName)
+    {
+        _doc = doc;
+        _parentCommandName = parentCommandName;
+    }
+
+    protected override void SetCriticalVariables()
+    {
+        _workflowName = this.GetType().Name;
+
+        _fileSystemManager = new FileSystemManager(_doc.Title, _workflowName, _parentCommandName);
+
+        _workflowObservableData = new WorkflowObservableData
+        {
+            DocumentTitle = _doc.Title,
+            WorkflowName = _workflowName
+        };
+    }
+}
+
+
+public abstract class ManagedWorkflow<Dto> where Dto : class, IDto, new()
+{
+    protected ExternalCommandData? _commandData;
     protected Document? _doc;
-    protected string? _commandName;
+    protected string? _workflowName;
     protected FileSystemManager? _fileSystemManager;
-    protected CommandObservableData? _commandObservableData;
+    protected WorkflowObservableData? _workflowObservableData;
     protected Dto _dto = new();
     private readonly List<(Action<List<string>> action, bool mustLogAction, TransactionManagementOptions transactionManagementOption)> _actions = [];
 
@@ -18,40 +67,81 @@ public abstract class ExternalCommand<Dto> : IExternalCommand where Dto : class,
         _actions.Add((a, mustLogAction, b));
     }
 
-    public Autodesk.Revit.UI.Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
+    public void Execute()
     {
-        if (commandData.Application.ActiveUIDocument == null)
+        SetCriticalVariables();
+
+        if (_doc is null)
         {
-            message = "Please open a Revit project before running this command.";
-
-            return Autodesk.Revit.UI.Result.Cancelled;
+            throw new Exception("Please provide a valid Revit Document before running this workflow.");
         }
-
-        SetCriticalVariables(commandData);
 
         SetActions();
 
-        using (TransactionGroup transGroup = new TransactionGroup(_doc, _commandName))
+        bool isEntirelyTransactionless = _actions.All(a => a.transactionManagementOption == TransactionManagementOptions.TransactionlessAction);
+
+        using (TransactionGroup? transGroup = isEntirelyTransactionless ? null : new TransactionGroup(_doc, _workflowName))
         {
             try
             {
-                transGroup.Start();
+                transGroup?.Start();
 
                 ExecuteCorrespondingWorkflowTransactionApproach();
 
-                transGroup.Assimilate();
+                transGroup?.Assimilate();
+            }
+            catch (Exception)
+            {
+                if (transGroup?.HasStarted() == true)
+                {
+                    transGroup.RollBack();
+                }
+
+                throw;
+            }
+            finally
+            {
+                RecordData();
+            }
+        }
+    }
+
+    public Autodesk.Revit.UI.Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
+    {
+        _commandData = commandData;
+
+        if (_commandData.Application.ActiveUIDocument == null)
+        {
+            message = "Please open a Revit project before running this workflow.";
+            return Autodesk.Revit.UI.Result.Cancelled;
+        }
+
+        SetCriticalVariables();
+
+        SetActions();
+
+        bool isEntirelyTransactionless = _actions.All(a => a.transactionManagementOption == TransactionManagementOptions.TransactionlessAction);
+
+        using (TransactionGroup? transGroup = isEntirelyTransactionless ? null : new TransactionGroup(_doc, _workflowName))
+        {
+            try
+            {
+                transGroup?.Start();
+
+                ExecuteCorrespondingWorkflowTransactionApproach();
+
+                transGroup?.Assimilate();
 
                 return Autodesk.Revit.UI.Result.Succeeded;
             }
             catch (Exception ex)
             {
-                if (transGroup.HasStarted())
+                if (transGroup?.HasStarted() == true)
                 {
                     transGroup.RollBack();
                 }
 
                 message = ex.Message;
-
                 return Autodesk.Revit.UI.Result.Failed;
             }
             finally
@@ -61,24 +151,11 @@ public abstract class ExternalCommand<Dto> : IExternalCommand where Dto : class,
         }
     }
 
-    private void SetCriticalVariables(ExternalCommandData commandData)
-    {
-        _doc = commandData.Application.ActiveUIDocument.Document;
-
-        _commandName = this.GetType().Name;
-
-        _fileSystemManager = new FileSystemManager(_doc.Title, _commandName);
-
-        _commandObservableData = new CommandObservableData
-        {
-            DocumentTitle = _doc.Title,
-            CommandName = _commandName
-        };
-    }
+    protected abstract void SetCriticalVariables();
 
     protected abstract void SetActions();
 
-    private void ExecuteCorrespondingWorkflowTransactionApproach()
+    protected void ExecuteCorrespondingWorkflowTransactionApproach()
     {
         var transactionManagementOptions = _actions.Select(a => a.transactionManagementOption).ToList();
 
@@ -96,7 +173,6 @@ public abstract class ExternalCommand<Dto> : IExternalCommand where Dto : class,
         {
             var action = _actions[i];
             var actionName = action.action.Method.Name;
-            //var actionName = action.GetType().Name;
             var actionTransactionManagementOption = action.transactionManagementOption;
             var actionRequiresTransaction = actionTransactionManagementOption
                 is TransactionManagementOptions.RequiresDedicatedTransactionForAction
@@ -169,7 +245,7 @@ public abstract class ExternalCommand<Dto> : IExternalCommand where Dto : class,
         // Prepare Command Action telemetry
         ////////////////
 
-        var observableAction = new CommandObservableAction
+        var observableAction = new WorkflowObservableAction
         {
             Name = action.Method.Name,
             ActionNumber = actionNumber,
@@ -191,7 +267,7 @@ public abstract class ExternalCommand<Dto> : IExternalCommand where Dto : class,
             // Handle Comnnad Action failure
             //////////////// 
 
-            var failure = new CommandObservableDataFailure
+            var failure = new WorkflowObservableDataFailure
             {
                 Message = ex.Message,
                 StackTrace = ex.StackTrace,
@@ -200,7 +276,7 @@ public abstract class ExternalCommand<Dto> : IExternalCommand where Dto : class,
 
             observableAction.Failure = failure;
 
-            _commandObservableData!.Failure = failure;
+            _workflowObservableData!.Failure = failure;
 
             throw;
         }
@@ -212,32 +288,32 @@ public abstract class ExternalCommand<Dto> : IExternalCommand where Dto : class,
 
             if (mustReportTelemetry) observableAction.Telemetry = telemetryCollector;
 
-            _commandObservableData!.ActionsNames.Add(observableAction.Name);
+            _workflowObservableData!.ActionsNames.Add(observableAction.Name);
 
-            _commandObservableData!.Actions.Add(observableAction);
+            _workflowObservableData!.Actions.Add(observableAction);
         }
     }
 
-    private void RecordData()
+    protected void RecordData()
     {
         ////////////////
-        // Convert command data to observable object
+        // Convert workflow data to observable object
         //////////////// 
 
         var convertedData = _dto.ToObservableObject();
 
         ////////////////
-        // Append command data to telemetry collector
+        // Append workflow data to telemetry collector
         ////////////////
 
-        _commandObservableData!.Data = convertedData;
+        _workflowObservableData!.Data = convertedData;
 
         ////////////////
         // Serialize telemetry collector
         ////////////////
 
         var serializedData = JsonSerializer.Serialize(
-            _commandObservableData,
+            _workflowObservableData,
             new JsonSerializerOptions
             {
                 IncludeFields = true,

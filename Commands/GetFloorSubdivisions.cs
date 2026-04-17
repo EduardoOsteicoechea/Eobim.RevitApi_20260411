@@ -2,6 +2,7 @@ using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using Eobim.RevitApi.Core;
 using Eobim.RevitApi.Framework;
+using Eobim.RevitApi.Workflows;
 using static Eobim.RevitApi.Framework.DtoFormatter;
 using static RevitCurveLoop;
 
@@ -27,14 +28,14 @@ public class GetFloorSubdivisions : Framework.ExternalCommand<GetFloorSubdivisio
 	{
         Add(GetAllFloors, true);
 		Add(GetInterestFloorByMarkParameter, true);
-		Add(GetInterestFloorTopFace);
-		//Add(GetInterestFloorTopFaceOuterCurveLoop);
-		//Add(ModelOuterCurveLoopPoints, Framework.TransactionManagementOptions.DedicatedTransaction);
-		////Add(GenerateCurveLoopSegmentationFrame);
-		//Add(LoadCarboardFamilySymbol);
-		//Add(GetBasePlacementLevel);
-		//Add(GenerateOuterCurveLoopDisplacedLines, Framework.TransactionManagementOptions.DedicatedTransaction);
-		//Add(PlaceOuterCarboardFamilyInstances, Framework.TransactionManagementOptions.DedicatedTransaction);
+		Add(GetInterestFloorTopFace, true);
+		Add(GetInterestFloorTopFaceOuterCurveLoop, true);
+		Add(ModelOuterCurveLoopPoints, true, Framework.TransactionManagementOptions.RequiresDedicatedTransactionForAction);
+		Add(GenerateCurveLoopSegmentationFrame, true, Framework.TransactionManagementOptions.RequiresDedicatedTransactionForAction);
+		Add(LoadCarboardFamilySymbol, true);
+		Add(GetBasePlacementLevel, true);
+		Add(GenerateOuterCurveLoopDisplacedLines, true, Framework.TransactionManagementOptions.RequiresDedicatedTransactionForAction);
+		//Add(PlaceOuterCarboardFamilyInstances, true, Framework.TransactionManagementOptions.RequiresDedicatedTransactionForAction);
 		//Add(SetOuterBorderPlacedFamilyInstancesHeight);
 		//Add(SetOuterBorderPlacedFamilyInstancesThickness);
 
@@ -80,7 +81,7 @@ public class GetFloorSubdivisions : Framework.ExternalCommand<GetFloorSubdivisio
 		_dto.InterestFloorTopFace = result;
 	}
 
-	public void GetInterestFloorTopFaceOuterCurveLoop()
+	public void GetInterestFloorTopFaceOuterCurveLoop(List<string> _telemetry)
 	{
 		var result = RevitFace.OuterCurveLoop(_dto.InterestFloorTopFace!);
 
@@ -89,7 +90,7 @@ public class GetFloorSubdivisions : Framework.ExternalCommand<GetFloorSubdivisio
 		_dto.OuterCurveLoop = result;
 	}
 
-	public void ModelOuterCurveLoopPoints()
+	public void ModelOuterCurveLoopPoints(List<string> _telemetry)
 	{
 		var points = _dto.OuterCurveLoop!.SelectMany(a => a.Tessellate()).ToList();
 
@@ -102,18 +103,19 @@ public class GetFloorSubdivisions : Framework.ExternalCommand<GetFloorSubdivisio
 		}
 	}
 
-	public void GenerateCurveLoopSegmentationFrame()
+	public void GenerateCurveLoopSegmentationFrame(List<string> _telemetry)
 	{
 		_dto.OuterCurveLoopSegmentationFrame = RevitCurveLoop.SegmentationFrame(_doc!, _dto.OuterCurveLoop!, 2, 2);
 	}
 
-	public void LoadCarboardFamilySymbol()
+	public void LoadCarboardFamilySymbol(List<string> _telemetry)
 	{
 		var result = RevitFamily.GetSymbol(_doc!, CARDBOARD_FAMILY_NAME, CARDBOARD_TYPE_NAME);
 
 		if (result is null)
 		{
 			RevitFamily.Load(_doc!, CARDBOARD_FAMILY_PATH);
+
 			result = RevitFamily.GetSymbol(_doc!, CARDBOARD_FAMILY_NAME, CARDBOARD_TYPE_NAME);
 		}
 
@@ -122,7 +124,7 @@ public class GetFloorSubdivisions : Framework.ExternalCommand<GetFloorSubdivisio
 		_dto.CarboardFamilySymbol = result;
 	}
 
-	public void GetBasePlacementLevel()
+	public void GetBasePlacementLevel(List<string> _telemetry)
 	{
 		var result = _doc!.ActiveView.GenLevel;
 
@@ -136,50 +138,70 @@ public class GetFloorSubdivisions : Framework.ExternalCommand<GetFloorSubdivisio
 		_dto.BasePlacementLevel = result;
 	}
 
-	public void GenerateOuterCurveLoopDisplacedLines()
-	{
-		var result = new List<Line>();
+    private void GenerateOuterCurveLoopDisplacedLines(List<string> telemetry)
+    {
+        // Ensure we have the prerequisites from previous steps
+        if (_dto.OuterCurveLoop == null) throw new Exception("OuterCurveLoop is missing.");
 
-		var curveList = _dto.OuterCurveLoop!.ToList();
+        // 1. Instantiate the sub-workflow
+        var subWorkflow = new GenerateOuterCurveLoopDisplacedLinesWorkflow(_doc!, _workflowName!);
 
-		for (int i = 1; i < curveList.Count; i++)
-		{
-			Curve curve = curveList[i];
+        // 2. Inject the necessary data
+        subWorkflow.InitializeInputs(_dto.OuterCurveLoop, CARDBOARD_THICKNESS);
 
-			if (curve is Line line)
-			{
-				XYZ p0 = line.GetEndPoint(0);
-				XYZ p1 = line.GetEndPoint(1);
+        // 3. Execute it safely
+        subWorkflow.Execute();
 
-				// Get the normalized direction vector of the line
-				XYZ direction = (p1 - p0).Normalize();
+        // 4. Retrieve the result and store it in the parent DTO for the next steps!
+        _dto.OuterCurveLoopDisplacedLines = subWorkflow.Result;
 
-				// Displace the START point forward by the cardboard thickness
-				// Note: Doing this for every line in the closed loop creates a perfect 
-				// "pinwheel" butt-joint at the corners where no pieces overlap.
-				XYZ newP0 = p0 + direction * CARDBOARD_THICKNESS;
+        telemetry.Add($"Sub-workflow returned {_dto.OuterCurveLoopDisplacedLines!.Count} lines.");
+    }
 
-				//RevitDirectShape.GenericModelFromSolid(_doc!, RevitSolid.SphereFromXYZAndRadius(newP0, .1));
+    //public void GenerateOuterCurveLoopDisplacedLines(List<string> _telemetry)
+    //{
+    //	var result = new List<Line>();
 
-				// Safety check: Ensure the line hasn't been shrunk out of existence
-				if (newP0.DistanceTo(p1) > 0.004)
-				{
-					result.Add(Line.CreateBound(newP0, p1));
-				}
-				else
-				{
-					// If the line is microscopic, keep the original to prevent a crash
-					result.Add(line);
-				}
-			}
-		}
+    //	var curveList = _dto.OuterCurveLoop!.ToList();
 
-		if (!result.Any()) throw new NullReferenceException("No lines were generated.");
+    //	for (int i = 1; i < curveList.Count; i++)
+    //	{
+    //		Curve curve = curveList[i];
 
-		_dto.OuterCurveLoopDisplacedLines = result;
-	}
+    //		if (curve is Line line)
+    //		{
+    //			XYZ p0 = line.GetEndPoint(0);
+    //			XYZ p1 = line.GetEndPoint(1);
 
-	public void PlaceOuterCarboardFamilyInstances()
+    //			// Get the normalized direction vector of the line
+    //			XYZ direction = (p1 - p0).Normalize();
+
+    //			// Displace the START point forward by the cardboard thickness
+    //			// Note: Doing this for every line in the closed loop creates a perfect 
+    //			// "pinwheel" butt-joint at the corners where no pieces overlap.
+    //			XYZ newP0 = p0 + direction * CARDBOARD_THICKNESS;
+
+    //			//RevitDirectShape.GenericModelFromSolid(_doc!, RevitSolid.SphereFromXYZAndRadius(newP0, .1));
+
+    //			// Safety check: Ensure the line hasn't been shrunk out of existence
+    //			if (newP0.DistanceTo(p1) > 0.004)
+    //			{
+    //				result.Add(Line.CreateBound(newP0, p1));
+    //			}
+    //			else
+    //			{
+    //				// If the line is microscopic, keep the original to prevent a crash
+    //				result.Add(line);
+    //			}
+    //		}
+    //	}
+
+    //	if (!result.Any()) throw new NullReferenceException("No lines were generated.");
+
+    //	_dto.OuterCurveLoopDisplacedLines = result;
+    //}
+
+    public void PlaceOuterCarboardFamilyInstances(List<string> _telemetry)
 	{
 		var result = new List<FamilyInstance>();
 
@@ -204,7 +226,7 @@ public class GetFloorSubdivisions : Framework.ExternalCommand<GetFloorSubdivisio
 		_dto.OuterBorderPlacedFamilyInstances = result;
 	}
 
-	public void SetOuterBorderPlacedFamilyInstancesHeight()
+	public void SetOuterBorderPlacedFamilyInstancesHeight(List<string> _telemetry)
 	{
 		foreach (FamilyInstance instance in _dto.OuterBorderPlacedFamilyInstances!)
 		{
@@ -212,7 +234,7 @@ public class GetFloorSubdivisions : Framework.ExternalCommand<GetFloorSubdivisio
 		}
 	}
 
-	public void SetOuterBorderPlacedFamilyInstancesThickness()
+	public void SetOuterBorderPlacedFamilyInstancesThickness(List<string> _telemetry)
 	{
 		foreach (FamilyInstance instance in _dto.OuterBorderPlacedFamilyInstances!)
 		{

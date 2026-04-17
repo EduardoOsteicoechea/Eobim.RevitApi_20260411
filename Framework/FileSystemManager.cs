@@ -12,6 +12,7 @@ public class FileSystemManager
     {
         _instanceLogDirectory = Path.Combine(_mainLogDirectory, revitDocumentTitle);
         _filePath = Path.Combine(_instanceLogDirectory, $"{commandName}.json");
+
         ValidateLogDirectory();
     }
 
@@ -19,16 +20,20 @@ public class FileSystemManager
     {
         _instanceLogDirectory = Path.Combine(_mainLogDirectory, revitDocumentTitle);
         _filePath = Path.Combine(_instanceLogDirectory, multistepActionName, $"{commandName}.json");
+
         ValidateLogDirectory();
     }
 
     private void ValidateLogDirectory()
     {
-        if (!Directory.Exists(_instanceLogDirectory))
+        var targetDirectory = Path.GetDirectoryName(_filePath);
+
+        if (!string.IsNullOrEmpty(targetDirectory) && !Directory.Exists(targetDirectory))
         {
-            Directory.CreateDirectory(_instanceLogDirectory);
+            Directory.CreateDirectory(targetDirectory);
         }
     }
+
     public void WriteTelemetryFile(string? content)
     {
         if (!string.IsNullOrEmpty(content)) File.WriteAllText(_filePath, content);

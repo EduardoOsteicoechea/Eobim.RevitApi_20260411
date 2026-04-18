@@ -11,7 +11,7 @@ public class FileSystemManager
     public FileSystemManager(string revitDocumentTitle, string commandName)
     {
         _instanceLogDirectory = Path.Combine(_mainLogDirectory, revitDocumentTitle);
-        _filePath = Path.Combine(_instanceLogDirectory, $"{commandName}.json");
+        _filePath = Path.Combine(_instanceLogDirectory, commandName, $"{commandName}.json");
 
         ValidateLogDirectory();
     }

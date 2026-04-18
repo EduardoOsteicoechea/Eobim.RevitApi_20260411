@@ -3,7 +3,6 @@ using Eobim.RevitApi.Framework;
 
 namespace Eobim.RevitApi.Workflows;
 
-// 1. The Scoped DTO for this specific action
 public class GenerateOuterCurveLoopDisplacedLinesDto : IDto
 {
     // Inputs
@@ -24,11 +23,9 @@ public class GenerateOuterCurveLoopDisplacedLinesDto : IDto
     }
 }
 
-// 2. The Decoupled Workflow
 public class GenerateOuterCurveLoopDisplacedLinesWorkflow(Document doc, string parentCommandName)
     : MultistepObservableAction<GenerateOuterCurveLoopDisplacedLinesDto, List<Line>>(doc, parentCommandName)
 {
-    // Helper to inject data before executing
     public void InitializeInputs(CurveLoop curveLoop, double thickness)
     {
         _dto.InputCurveLoop = curveLoop;
@@ -37,7 +34,6 @@ public class GenerateOuterCurveLoopDisplacedLinesWorkflow(Document doc, string p
 
     protected override void SetActions()
     {
-        // This is pure math (reading data/creating lines in memory), so it doesn't need a Revit transaction!
         Add(GenerateLines, mustLogAction: true, TransactionManagementOptions.TransactionlessAction);
     }
 
@@ -48,7 +44,6 @@ public class GenerateOuterCurveLoopDisplacedLinesWorkflow(Document doc, string p
         var result = new List<Line>();
         var curveList = _dto.InputCurveLoop.ToList();
 
-        // FIX: Start at 0, not 1, so you don't skip the first curve!
         for (int i = 0; i < curveList.Count; i++)
         {
             Curve curve = curveList[i];
@@ -68,10 +63,10 @@ public class GenerateOuterCurveLoopDisplacedLinesWorkflow(Document doc, string p
                 {
                     result.Add(Line.CreateBound(newP0, p1));
                 }
-                else
-                {
-                    result.Add(line);
-                }
+                //else
+                //{
+                //    result.Add(line);
+                //}
             }
         }
 

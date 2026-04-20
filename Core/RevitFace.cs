@@ -17,9 +17,24 @@ public static class RevitFace
 		}
 
 		return item.GetGeometryObjectFromReference(references[0]) as Face;
-	}
+    }
 
-	public static CurveLoop OuterCurveLoop(Face face)
+    public static Face Bottom
+    (
+        Element item
+    )
+    {
+        IList<Reference> references = HostObjectUtils.GetBottomFaces(item as HostObject);
+
+        if (references.Count == 0)
+        {
+            throw new Exception($"No top face found for element with id: {item.Id}");
+        }
+
+        return item.GetGeometryObjectFromReference(references[0]) as Face;
+    }
+
+    public static CurveLoop OuterCurveLoop(Face face)
 	{
 		IList<CurveLoop> loops = face.GetEdgesAsCurveLoops();
 

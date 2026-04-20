@@ -297,7 +297,7 @@ public static class TypeFormatter
 		return $"{data.Id.ToString()}: {data.Name}";
 	}
 
-	public static string Curves(List<Curve> data)
+	public static string CurveList(List<Curve> data)
 	{
 		if (data == null) return "[null]";
 
@@ -320,9 +320,36 @@ public static class TypeFormatter
 		if (data == null) return "[null]";
 
 		return $"{data.ApproximateLength}";
-	}
+    }
 
-	public static string Lines(List<Line> data)
+    public static string CurveRich(Curve data)
+    {
+        if (data == null) return "[null]";
+
+        return $"(Is Line:{data is Line} | {nameof(data.ApproximateLength)}: {data.ApproximateLength} | GetEndPoint(0): {data.GetEndPoint(0)} | GetEndPoint(1): {data.GetEndPoint(1)})";
+    }
+
+    public static string CurveLoop(CurveLoop data)
+    {
+        if (data == null) return "[null]";
+
+		var lines = data.ToList();
+
+        var printer = new StringBuilder();
+
+        printer.Append($"({lines.Count} | {nameof(data.IsOpen)}: {data.IsOpen()} | {nameof(data.IsCounterclockwise)}: {data.IsCounterclockwise(Autodesk.Revit.DB.XYZ.BasisZ)} | [");
+
+        foreach (Curve item in lines)
+        {
+            printer.Append($"{CurveRich(item)}, ");
+        }
+
+        printer.Append($"]");
+
+        return printer.ToString();
+    }
+
+    public static string LineList(List<Line> data)
 	{
 		if (data == null) return "[null]";
 
@@ -1183,7 +1210,7 @@ public static class TypeFormatter
 			printer.Append($"(");
 			printer.Append($"{ElementId(item.Key)}, ");
 			printer.Append($"(");
-			printer.Append($"{XYZs(item.Value)}");
+			printer.Append($"{XYZList(item.Value)}");
 			printer.Append($"),");
 			printer.Append($"),");
 		}
@@ -1193,7 +1220,7 @@ public static class TypeFormatter
 		return printer.ToString();
 	}
 
-	public static string XYZs(List<XYZ> data)
+	public static string XYZList(List<XYZ> data)
 	{
 		if (data == null) return "[null]";
 

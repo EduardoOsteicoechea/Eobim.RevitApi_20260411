@@ -168,10 +168,10 @@ public static class RevitCurveLoop
 		var rightLineSolid = RevitSolid.SquareBarFromLineAndRadius(rightLine);
 		var topLineSolid = RevitSolid.SquareBarFromLineAndRadius(topLine);
 
-		//RevitDirectShape.GenericModelFromSolid(doc, bottomLineSolid);
-		//RevitDirectShape.GenericModelFromSolid(doc, leftLineSolid);
-		//RevitDirectShape.GenericModelFromSolid(doc, rightLineSolid);
-		//RevitDirectShape.GenericModelFromSolid(doc, topLineSolid);
+		//RevitDirectShape.SetGenericModelFromSolidOnExistingTransaction(doc, bottomLineSolid);
+		//RevitDirectShape.SetGenericModelFromSolidOnExistingTransaction(doc, leftLineSolid);
+		//RevitDirectShape.SetGenericModelFromSolidOnExistingTransaction(doc, rightLineSolid);
+		//RevitDirectShape.SetGenericModelFromSolidOnExistingTransaction(doc, topLineSolid);
 		
 		// 6. Subdivide the Bottom and Left lines into manageable segments
 		List<Line> bottomSubdivisions = SubdivideLine(bottomLine, segmentLength);
@@ -179,16 +179,16 @@ public static class RevitCurveLoop
 
 		//foreach (var subdivision in bottomSubdivisions)
 		//{
-		//	RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SquareBarFromLineAndRadius(subdivision, .05));
-		//	RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SphereFromXYZAndRadius(subdivision.GetEndPoint(0), .05));
-		//	RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SphereFromXYZAndRadius(subdivision.GetEndPoint(1), .05));
+		//	RevitDirectShape.SetGenericModelFromSolidOnExistingTransaction(doc, RevitSolid.SquareBarFromLineAndRadius(subdivision, .05));
+		//	RevitDirectShape.SetGenericModelFromSolidOnExistingTransaction(doc, RevitSolid.CreateSphereFromXYZAndRadius(subdivision.GetEndPoint(0), .05));
+		//	RevitDirectShape.SetGenericModelFromSolidOnExistingTransaction(doc, RevitSolid.CreateSphereFromXYZAndRadius(subdivision.GetEndPoint(1), .05));
 		//}
 
 		//foreach (var subdivision in leftSubdivisions)
 		//{
-		//	RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SquareBarFromLineAndRadius(subdivision, .05));
-		//	RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SphereFromXYZAndRadius(subdivision.GetEndPoint(0), .05));
-		//	RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SphereFromXYZAndRadius(subdivision.GetEndPoint(1), .05));
+		//	RevitDirectShape.SetGenericModelFromSolidOnExistingTransaction(doc, RevitSolid.SquareBarFromLineAndRadius(subdivision, .05));
+		//	RevitDirectShape.SetGenericModelFromSolidOnExistingTransaction(doc, RevitSolid.CreateSphereFromXYZAndRadius(subdivision.GetEndPoint(0), .05));
+		//	RevitDirectShape.SetGenericModelFromSolidOnExistingTransaction(doc, RevitSolid.CreateSphereFromXYZAndRadius(subdivision.GetEndPoint(1), .05));
 		//}
 
 		// 7. Generate the perpendicular ray-casting lines spanning the bounding box
@@ -209,11 +209,11 @@ public static class RevitCurveLoop
 		// --- VISUAL DEBUGGING FOR RAYS (Optional) ---
 		//foreach (var ray in bottomPerpendicularSubdivision)
 		//{
-		//	RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SquareBarFromLineAndRadius(ray, .01));
+		//	RevitDirectShape.SetGenericModelFromSolidOnExistingTransaction(doc, RevitSolid.SquareBarFromLineAndRadius(ray, .01));
 		//}
 		//foreach (var ray in leftPerpendicularSubdivision)
 		//{
-		//	RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SquareBarFromLineAndRadius(ray, .01));
+		//	RevitDirectShape.SetGenericModelFromSolidOnExistingTransaction(doc, RevitSolid.SquareBarFromLineAndRadius(ray, .01));
 		//}
 
 		// 8. Intersect the horizontal rays (left perpendiculars) with the CurveLoop
@@ -224,9 +224,9 @@ public static class RevitCurveLoop
 
 			foreach (Line line in internalLines)
 			{
-				RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SquareBarFromLineAndRadius(line, .02));
-				RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SphereFromXYZAndRadius(line.GetEndPoint(0), .05));
-				RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SphereFromXYZAndRadius(line.GetEndPoint(1), .05));
+				RevitDirectShape.SetGenericModelFromSolidOnExistingTransaction(doc, RevitSolid.SquareBarFromLineAndRadius(line, .02));
+				RevitDirectShape.SetGenericModelFromSolidOnExistingTransaction(doc, RevitSolid.CreateSphereFromXYZAndRadius(line.GetEndPoint(0), .05));
+				RevitDirectShape.SetGenericModelFromSolidOnExistingTransaction(doc, RevitSolid.CreateSphereFromXYZAndRadius(line.GetEndPoint(1), .05));
 			}
 
 			horizontalInternalSegments.AddRange(internalLines);
@@ -240,9 +240,9 @@ public static class RevitCurveLoop
 
 			foreach (Line line in internalLines)
 			{
-				RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SquareBarFromLineAndRadius(line, .02));
-				RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SphereFromXYZAndRadius(line.GetEndPoint(0), .05));
-				RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SphereFromXYZAndRadius(line.GetEndPoint(1), .05));
+				RevitDirectShape.SetGenericModelFromSolidOnExistingTransaction(doc, RevitSolid.SquareBarFromLineAndRadius(line, .02));
+				RevitDirectShape.SetGenericModelFromSolidOnExistingTransaction(doc, RevitSolid.CreateSphereFromXYZAndRadius(line.GetEndPoint(0), .05));
+				RevitDirectShape.SetGenericModelFromSolidOnExistingTransaction(doc, RevitSolid.CreateSphereFromXYZAndRadius(line.GetEndPoint(1), .05));
 			}
 
 			verticalInternalSegments.AddRange(internalLines);
@@ -291,8 +291,8 @@ public static class RevitCurveLoop
 				horizontalLinesLastIntersections.Add(lastPoint);
 
 				// --- VISUAL DEBUGGING ---
-				//RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SphereFromXYZAndRadius(firstPoint, .05));
-				//RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SphereFromXYZAndRadius(lastPoint, .05));
+				//RevitDirectShape.SetGenericModelFromSolidOnExistingTransaction(doc, RevitSolid.CreateSphereFromXYZAndRadius(firstPoint, .05));
+				//RevitDirectShape.SetGenericModelFromSolidOnExistingTransaction(doc, RevitSolid.CreateSphereFromXYZAndRadius(lastPoint, .05));
 			}
 		}
 
@@ -333,8 +333,8 @@ public static class RevitCurveLoop
 				verticalLinesLastIntersections.Add(lastPoint);
 
 				// --- VISUAL DEBUGGING ---
-				//RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SphereFromXYZAndRadius(firstPoint, .05));
-				//RevitDirectShape.GenericModelFromSolid(doc, RevitSolid.SphereFromXYZAndRadius(lastPoint, .05));
+				//RevitDirectShape.SetGenericModelFromSolidOnExistingTransaction(doc, RevitSolid.CreateSphereFromXYZAndRadius(firstPoint, .05));
+				//RevitDirectShape.SetGenericModelFromSolidOnExistingTransaction(doc, RevitSolid.CreateSphereFromXYZAndRadius(lastPoint, .05));
 			}
 		}
 

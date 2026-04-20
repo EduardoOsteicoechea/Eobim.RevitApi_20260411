@@ -1,30 +1,10 @@
 ﻿using Autodesk.Revit.DB;
 using Eobim.RevitApi.Framework;
-
 namespace Eobim.RevitApi.Workflows;
 
-public class GenerateOuterCurveLoopDisplacedLinesDto : IDto
-{
-    // Inputs
-    public CurveLoop? InputCurveLoop { get; set; }
-    public double DisplacementThickness { get; set; }
-
-    // Output
-    public List<Line>? OutputDisplacedLines { get; set; }
-
-    public List<(string, object)> ToObservableObject()
-    {
-        return new List<(string, object)>
-        {
-            ("CurveLoopProvided", InputCurveLoop != null),
-            ("Thickness", DisplacementThickness),
-            ("GeneratedLinesCount", OutputDisplacedLines?.Count ?? 0)
-        };
-    }
-}
-
-public class GenerateOuterCurveLoopDisplacedLinesWorkflow(Document doc, string parentCommandName)
-    : MultistepObservableAction<GenerateOuterCurveLoopDisplacedLinesDto, List<Line>>(doc, parentCommandName)
+public class CurveLoop_GenerateDisplacedLinesWorkflow(Document doc, string parentCommandName)
+: 
+MultistepObservableAction<GenerateOuterCurveLoopDisplacedLinesDto, List<Line>>(doc, parentCommandName)
 {
     public void InitializeInputs(CurveLoop curveLoop, double thickness)
     {
@@ -53,20 +33,23 @@ public class GenerateOuterCurveLoopDisplacedLinesWorkflow(Document doc, string p
                 XYZ p0 = line.GetEndPoint(0);
                 XYZ p1 = line.GetEndPoint(1);
 
-                XYZ direction = (p1 - p0).Normalize();
+                XYZ direction = (p1 - p0).Normalize().Negate();
 
                 // Displace the START point forward by the cardboard thickness
-                XYZ newP0 = p0 + direction * _dto.DisplacementThickness;
+                XYZ newP0 = p0 + (direction * (_dto.DisplacementThickness * 0.5));
+                XYZ newP1 = p1 + (direction * (_dto.DisplacementThickness * 0.5));
+
+
 
                 // Safety check: Ensure the line hasn't been shrunk out of existence
-                if (newP0.DistanceTo(p1) > 0.004)
+                if (newP0.DistanceTo(newP1) > 0.004)
                 {
-                    result.Add(Line.CreateBound(newP0, p1));
+                    result.Add(Line.CreateBound(newP0, newP1));
                 }
-                //else
-                //{
-                //    result.Add(line);
-                //}
+                else
+                {
+                    result.Add(line);
+                }
             }
         }
 
@@ -74,9 +57,24 @@ public class GenerateOuterCurveLoopDisplacedLinesWorkflow(Document doc, string p
 
         _dto.OutputDisplacedLines = result;
 
-        // CRITICAL: Set the Result property so the parent command can retrieve it!
         Result = result;
+    }
+}
 
-        telemetry.Add($"Successfully generated {result.Count} displaced lines.");
+public class GenerateOuterCurveLoopDisplacedLinesDto : IDto
+{
+    public CurveLoop? InputCurveLoop { get; set; }
+    public double DisplacementThickness { get; set; }
+    public List<Line>? OutputDisplacedLines { get; set; }
+
+    public List<(string, object)> ToObservableObject()
+    {
+        return new List<(string, object)>
+        {
+            ("CurveLoopProvided", InputCurveLoop != null),
+            ("Thickness", DisplacementThickness),
+            ("GeneratedLinesCount", OutputDisplacedLines?.Count ?? 0)
+        };
+
     }
 }

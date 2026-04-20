@@ -6,7 +6,7 @@ using Autodesk.Revit.DB;
 public static class RevitSolid
 {
 	// Existing method...
-	public static Solid SphereFromXYZAndRadius(
+	public static Solid CreateSphereFromXYZAndRadius(
 		XYZ point,
 		double raidus = .5,
 		double startAngle = 0,

@@ -14,10 +14,11 @@ internal class CurveLoop_GenerateInnerOffsetBoundary
     parentCommandName
 )
 {
-    public void InitializeInputs(CurveLoop curveLoop, double offset)
+
+    public override void SafelyInitializeInputs(object[] args)
     {
-        _dto.CurveLoop = curveLoop;
-        _dto.Offset = offset;
+        _dto.CurveLoop = args[0] as CurveLoop;
+        _dto.Offset = (double)args[1];
     }
 
     protected override void SetActions()

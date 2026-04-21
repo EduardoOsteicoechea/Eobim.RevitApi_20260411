@@ -37,6 +37,8 @@ public abstract class MultistepObservableAction<Dto, TResult> : ManagedWorkflow<
         _parentCommandName = parentCommandName;
     }
 
+    public abstract void SafelyInitializeInputs(object[] args);
+
     protected override void SetCriticalVariables()
     {
         _workflowName = this.GetType().Name;

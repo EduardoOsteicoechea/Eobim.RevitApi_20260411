@@ -1036,6 +1036,18 @@ public static class TypeFormatter
 		return printer.ToString();
 	}
 
+	public static string Family(Family item)
+	{
+		if (item == null) return "[null]";
+		return $"{item.Id}";
+	}
+
+	public static string FamilySymbol(FamilySymbol item)
+	{
+		if (item == null) return "[null]";
+		return $"{item.Id}";
+	}
+
 	public static string FamilyInstance(FamilyInstance item)
 	{
 		if (item == null) return "[null]";

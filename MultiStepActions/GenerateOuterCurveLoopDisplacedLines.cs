@@ -1,15 +1,16 @@
 ﻿using Autodesk.Revit.DB;
 using Eobim.RevitApi.Framework;
+using System.Windows;
 namespace Eobim.RevitApi.Workflows;
 
 public class CurveLoop_GenerateDisplacedLinesWorkflow(Document doc, string parentCommandName)
 : 
 MultistepObservableAction<GenerateOuterCurveLoopDisplacedLinesDto, List<Line>>(doc, parentCommandName)
 {
-    public void InitializeInputs(CurveLoop curveLoop, double thickness)
+    public override void SafelyInitializeInputs(object[] args)
     {
-        _dto.InputCurveLoop = curveLoop;
-        _dto.DisplacementThickness = thickness;
+        _dto.InputCurveLoop = (CurveLoop)args[0];
+        _dto.DisplacementThickness = (double)args[1];
     }
 
     protected override void SetActions()

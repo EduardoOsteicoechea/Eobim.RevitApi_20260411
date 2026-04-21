@@ -97,7 +97,7 @@ public static class RevitFamily
 	// ==========================================
 	// SET PARAMETER
 	// ==========================================
-	public static bool SetSharedParameterValueByParameterName(Element element, string parameterName, double value)
+	public static bool SetParameterValueByParameterName(Element element, string parameterName, double value)
 	{
 		if (element == null) return false;
 
@@ -105,7 +105,7 @@ public static class RevitFamily
 		using (Transaction t = new Transaction(element.Document, "Set Parameter Value"))
 		{
 			t.Start();
-			result = SetSharedParameterValueByParameterNameTransactionless(element, parameterName, value);
+			result = SetParameterValueByParameterNameTransactionless(element, parameterName, value);
 			t.Commit();
 		}
 
@@ -115,7 +115,7 @@ public static class RevitFamily
 	/// <summary>
 	/// Sets an instance or type parameter value by its name. Requires an active open transaction.
 	/// </summary>
-	public static bool SetSharedParameterValueByParameterNameTransactionless(Element element, string parameterName, double value)
+	public static bool SetParameterValueByParameterNameTransactionless(Element element, string parameterName, double value)
 	{
 		if (element == null) return false;
 

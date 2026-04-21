@@ -5,7 +5,7 @@ public interface IDto
 	List<(string, object)> ToObservableObject();
 }
 
-public interface Dto
+public abstract class Dto: IDto
 {
     public List<(string, object)> ToObservableObject()
     {

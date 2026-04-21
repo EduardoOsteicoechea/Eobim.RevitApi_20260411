@@ -6,10 +6,10 @@ public class LineList_GenerateDisplacedLinesWorkflow(Document doc, string parent
 :
 MultistepObservableAction<LineList_GenerateDisplacedLinesWorkflowDto, List<Line>>(doc, parentCommandName)
 {
-    public void InitializeInputs(List<Line> lines, double thickness)
+    public override void SafelyInitializeInputs(object[] args)
     {
-        _dto.InputLineList = lines;
-        _dto.DisplacementThickness = thickness;
+        _dto.InputLineList = args[0] as List<Line>;
+        _dto.DisplacementThickness = (double)args[1];
     }
 
     protected override void SetActions()

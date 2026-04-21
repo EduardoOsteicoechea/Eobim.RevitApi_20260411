@@ -24,7 +24,6 @@ public abstract class ExternalCommand<Dto> : ManagedWorkflow<Dto>, IExternalComm
     }
 }
 
-
 public abstract class MultistepObservableAction<Dto, TResult> : ManagedWorkflow<Dto>
     where Dto : class, IDto, new()
 {

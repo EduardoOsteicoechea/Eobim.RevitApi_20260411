@@ -19,12 +19,15 @@ internal class CurveLoop_GenerateInnerOffsetBoundary
     {
         _dto.CurveLoop = args[0] as CurveLoop;
         _dto.Offset = (double)args[1];
+        _dto.HeightAdjustment = (double)args[2];
+        _dto.FaceDirection = args[3] as XYZ;
     }
 
     protected override void SetActions()
     {
         Add(ExtractCurveLoopOrderedCurves);
         Add(GetCurveLoopLines);
+        Add(AdjustLinesZCoordinate);
         Add(GenerateOffsetLines);
         // Split into two granular steps for better observability
         Add(ExtractExactOffsetVertices);
@@ -66,16 +69,35 @@ internal class CurveLoop_GenerateInnerOffsetBoundary
         _dto.CurveLoopLines = result;
     }
 
+    public void AdjustLinesZCoordinate(List<string> _tracing)
+    {
+        var result = new List<Line>();
+
+        foreach (var item in _dto.CurveLoopLines)
+        {
+            var p1 = item.GetEndPoint(0);
+            var p2 = item.GetEndPoint(1);
+            result.Add(Line.CreateBound(
+                new XYZ(p1.X, p1.Y, p1.Z + _dto.HeightAdjustment),
+                new XYZ(p2.X, p2.Y, p2.Z + _dto.HeightAdjustment)
+                ));
+        }
+
+        if (result is null) throw new ArgumentNullException();
+
+        _dto.ZAdjustedCurveLoopLines = result;
+    }
+
     public void GenerateOffsetLines(List<string> _tracing)
     {
         var result = new List<Line>();
 
-        foreach (var curveLoopLine in _dto.CurveLoopLines)
+        foreach (var curveLoopLine in _dto.ZAdjustedCurveLoopLines)
         {
             var p1 = curveLoopLine.GetEndPoint(0) + (curveLoopLine.Direction.Negate() * 1);
-            var p2 = curveLoopLine.GetEndPoint(1) + (curveLoopLine.Direction * 1);
-
-            var offsetDirection = curveLoopLine.Direction.CrossProduct(XYZ.BasisZ).Negate();
+            var p2 = curveLoopLine.GetEndPoint(1) + (curveLoopLine.Direction * 1); 
+            
+            var offsetDirection = curveLoopLine.Direction.CrossProduct(XYZ.BasisZ) * (_dto.FaceDirection.IsAlmostEqualTo(XYZ.BasisZ) ? -1 : 1);
 
             var displacedP1 = p1 + (offsetDirection * _dto.Offset);
             var displacedP2 = p2 + (offsetDirection * _dto.Offset);
@@ -174,11 +196,20 @@ public class RevitCurveLoop_GenerateInnerOffsetBoundaryDto : IDto
     [Print(nameof(TypeFormatter.Double))]
     public double Offset { get; set; }
 
+    [Print(nameof(TypeFormatter.Double))]
+    public double HeightAdjustment { get; set; }
+
+    [Print(nameof(TypeFormatter.XYZ))]
+    public XYZ FaceDirection { get; set; }
+
     [Print(nameof(TypeFormatter.CurveList))]
     public List<Curve> CurveLoopOrderedCurves { get; set; }
 
     [Print(nameof(TypeFormatter.LineList))]
     public List<Line> CurveLoopLines { get; set; }
+
+    [Print(nameof(TypeFormatter.LineList))]
+    public List<Line> ZAdjustedCurveLoopLines { get; set; }
 
     [Print(nameof(TypeFormatter.LineList))]
     public List<Line> OffsetLines { get; set; }

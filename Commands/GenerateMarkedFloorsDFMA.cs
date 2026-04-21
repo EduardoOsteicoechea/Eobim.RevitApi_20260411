@@ -27,29 +27,22 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
 
 	protected override void SetActions()
 	{
-		/* 1 */ Add(PrepareFamily, true);
-
-        /* 3 */ Add(GetAllFloors, true);
-		/* 4 */ Add(GetInterestFloorByMarkParameter, true);
-
-        /* 5 */ Add(GetInterestFloorDMFAData, true);
+		/* 1 */ Add(RunPrepareFamilyWorkflow);
+        /* 2 */ Add(GetAllFloors);
+		/* 3 */ Add(GetInterestFloorByMarkParameter);
+        /* 4 */ Add(RunGetInterestFloorDMFADataWorkflow);
+        /* 5 */ Add(ModelBottomFace);
+        /* 5 */ Add(RunGenerateCurveLoopInternalOffsetBoundaryWorkflow);
+        /* 5 */ Add(ModelBottomInternalFace);
 
         //Add(ModelOuterCurveLoopPointsOnDedicatedTransaction, true, Framework.TransactionManagementOptions.RequiresDedicatedTransactionForAction);
-
-        /* 11 */ Add(GenerateCurveLoopInternalOffsetBoundary, true);
-
         //Add(ModelCurveLoopInternalOffsetBoundary, true, Framework.TransactionManagementOptions.RequiresDedicatedTransactionForAction);
         //Add(GenerateCurveLoopSegmentationFrame, true, Framework.TransactionManagementOptions.RequiresDedicatedTransactionForAction);
 
-        /* 12 */ Add(GenerateOuterCurveLoopDisplacedLines, true);
-        /* 13 */ Add(SetOuterCurveLoopDisplacedLinesZCoordinates, true);
-
-		/* 14 */ Add(PlaceOuterCarboardFamilyInstances, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
-		/* 15 */ Add(SetOuterBorderPlacedFamilyInstancesHeight, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
-		/* 16 */ Add(SetOuterBorderPlacedFamilyInstancesThickness, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
+        ///* 6 */ Add(GenerateOuterCurveLoopDisplacedLines);
 	}
 
-    public void PrepareFamily(List<string> _telemetry)
+    public void RunPrepareFamilyWorkflow(List<string> _telemetry)
     {
         var subworkflow = new RevitFamily_EntirelySetForUssageInRevitUI(_doc!, this.GetType().Name);
         subworkflow.SafelyInitializeInputs([CARDBOARD_FAMILY_PATH, CARDBOARD_FAMILY_NAME, CARDBOARD_TYPE_NAME]);
@@ -61,13 +54,9 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
     public void GetAllFloors(List<string> _telemetry)
     {
         var result = RevitFilteredElementCollector.ByBuiltInCategory<Floor>(_doc!, BuiltInCategory.OST_Floors);
-
         if (result is null) throw new NullReferenceException();
-
         if (result.Count.Equals(0)) throw new ArgumentOutOfRangeException($"Empty collection");
-
         _telemetry.Add($"Floors count: {result.Count}");
-
         _dto.Floors = result;
     }
 
@@ -89,7 +78,7 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
         _dto.InterestFloor = result;
 	}
 
-    public void GetInterestFloorDMFAData(List<string> _telemetry)
+    public void RunGetInterestFloorDMFADataWorkflow(List<string> _telemetry)
     {
         var subworkflow = new RevitDFMA_ExtractFloorData(_doc!, this.GetType().Name);
         subworkflow.SafelyInitializeInputs([_dto.InterestFloor]);
@@ -98,138 +87,41 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
         _dto.InterestFloorDFMAData = subworkflow.Result;
 	}
 
-    //public void ModelOuterCurveLoopPointsOnDedicatedTransaction(List<string> _telemetry)
-    //{
-    //	var points = _dto.OuterCurveLoop!.SelectMany(a => a.Tessellate()).ToList();
-
-    //	if (points is null) throw new NullReferenceException("Null points.");
-
-    //	foreach (XYZ item in points)
-    //	{
-    //		var sphere = RevitSolid.CreateSphereFromXYZAndRadius(item, .2);
-    //		RevitDirectShape.SetGenericModelFromSolidOnExistingTransaction(_doc!, sphere, "");
-    //	}
-    //}
-
-    public void GenerateCurveLoopInternalOffsetBoundary(List<string> _telemetry)
-	{
-		var subWorkflow = new CurveLoop_GenerateInnerOffsetBoundary(_doc!, _workflowName!);
-		subWorkflow.SafelyInitializeInputs([_dto.InterestFloorDFMAData.OuterCurveLoop!, CARDBOARD_THICKNESS / 2]);
-		subWorkflow.Execute();
+    public void ModelBottomFace(List<string> _telemetry)
+    {
+        var subWorkflow = new DirectShape_ModelPlanarByBoundaryLines(_doc!, _workflowName!);
+        subWorkflow.SafelyInitializeInputs([_dto.InterestFloorDFMAData.OuterCurveLoop.Select(a => a as Line).ToList()!, XYZ.BasisZ, CARDBOARD_THICKNESS, "BottomFace"]);
+        subWorkflow.Execute();
         if (subWorkflow.Result is null) throw new NullReferenceException(nameof(subWorkflow.Result));
-		_dto.OuterCurveLoopInternalOffsetBoundary = subWorkflow.Result;
+        _dto.BottomFaceDirectShapeDMFAData = subWorkflow.Result;
     }
 
- //   public void ModelCurveLoopInternalOffsetBoundary(List<string> _telemetry)
- //   {
- //       foreach (var item in _dto.OuterCurveLoopInternalOffsetBoundary)
- //       {
- //           RevitDirectShape.SetGenericModelFromSolidOnExistingTransaction(
-	//			_doc!, 
-	//			RevitSolid.SquareBarFromLineAndRadius(item, .1), 
-	//			""
-	//			);
- //       }
- //   }
+    public void RunGenerateCurveLoopInternalOffsetBoundaryWorkflow(List<string> _telemetry)
+    {
+        var subWorkflow = new CurveLoop_GenerateInnerOffsetBoundary(_doc!, _workflowName!);
+        subWorkflow.SafelyInitializeInputs([_dto.InterestFloorDFMAData.OuterCurveLoop!, CARDBOARD_THICKNESS, CARDBOARD_THICKNESS, XYZ.BasisZ.Negate()]);
+        subWorkflow.Execute();
+        if (subWorkflow.Result is null) throw new NullReferenceException(nameof(subWorkflow.Result));
+        _dto.OuterCurveLoopInternalOffsetBoundary = subWorkflow.Result;
+    }
 
- //   public void GenerateCurveLoopSegmentationFrame(List<string> _telemetry)
-	//{
-	//	_dto.OuterCurveLoopSegmentationFrame = RevitCurveLoop.SegmentationFrame(_doc!, _dto.OuterCurveLoop!, 2, 2);
-	//}
+    public void ModelBottomInternalFace(List<string> _telemetry)
+    {
+        var subWorkflow = new DirectShape_ModelPlanarByBoundaryLines(_doc!, _workflowName!);
+        subWorkflow.SafelyInitializeInputs([_dto.OuterCurveLoopInternalOffsetBoundary!, XYZ.BasisZ, CARDBOARD_THICKNESS, "BottomInternalFace"]);
+        subWorkflow.Execute();
+        if (subWorkflow.Result is null) throw new NullReferenceException(nameof(subWorkflow.Result));
+        _dto.BottomFaceDirectShapeDMFAData = subWorkflow.Result;
+    }
 
     private void GenerateOuterCurveLoopDisplacedLines(List<string> telemetry)
     {
         var subWorkflow = new LineList_GenerateDisplacedLinesWorkflow(_doc!, _workflowName!);
-
         subWorkflow.SafelyInitializeInputs([_dto.OuterCurveLoopInternalOffsetBoundary, CARDBOARD_THICKNESS]);
-
         subWorkflow.Execute();
-
         if (subWorkflow.Result is null) throw new NullReferenceException(nameof(subWorkflow.Result));
-
         _dto.OuterCurveLoopDisplacedLines = subWorkflow.Result;
     }
-
-    private void SetOuterCurveLoopDisplacedLinesZCoordinates(List<string> telemetry)
-    {
-        var result = new List<Line>();
-
-        foreach (var item in _dto.OuterCurveLoopDisplacedLines)
-        {
-            var p1 = item.GetEndPoint(0);
-            var p2 = item.GetEndPoint(1);
-            result.Add(Line.CreateBound(
-                new XYZ(p1.X, p1.Y, _dto.InterestFloorDFMAData.BottomFaceLowestPoint.Z),
-                new XYZ(p2.X, p2.Y, _dto.InterestFloorDFMAData.BottomFaceLowestPoint.Z)
-                )
-            );
-        }
-
-        _dto.AdjustedInZCoordinateOuterCurveLoopDisplacedLines = result;
-    }
-
-    public void PlaceOuterCarboardFamilyInstances(List<string> _telemetry)
-	{
-		var result = new List<FamilyInstance>();
-
-		var linesToModel = _dto.AdjustedInZCoordinateOuterCurveLoopDisplacedLines!.ToList();
-
-		foreach (Curve curve in linesToModel)
-		{
-			if (curve is Line line && line.Length > 0.004)
-			{
-                if (!AdaptiveComponentFamilyUtils.IsAdaptiveComponentFamily(_dto.CommonCarboardFamilySymbol.Family))
-                {
-					var message = $"Error: The symbol '{_dto.CommonCarboardFamilySymbol.Family.Name} - {_dto.CommonCarboardFamilySymbol.Name}' is not valid for adaptive placement.";
-					throw new Exception(message);
-                }
-
-                // 2. Create the adaptive component instance
-                // Note: It temporarily generates at the origin (0,0,0)
-                FamilyInstance adaptiveInstance = AdaptiveComponentInstanceUtils.CreateAdaptiveComponentInstance(_doc, _dto.CommonCarboardFamilySymbol);
-
-                // 3. Retrieve the internal adaptive points
-                IList<ElementId> placePointIds = AdaptiveComponentInstanceUtils.GetInstancePlacementPointElementRefIds(adaptiveInstance);
-
-                if (placePointIds.Count < 2)
-                {
-                    // Safety check: Ensure the family actually has 2 points
-                    throw new System.Exception("The provided family does not have two adaptive placement points.");
-                }
-
-                // 4. Cast the ElementIds to ReferencePoints and move them
-                ReferencePoint point1 = _doc.GetElement(placePointIds[0]) as ReferencePoint;
-                ReferencePoint point2 = _doc.GetElement(placePointIds[1]) as ReferencePoint;
-
-                // This is where you bypass Revit's snapping engine! 
-                // You are forcing strict absolute coordinates.
-                point1.Position = line.GetEndPoint(0);
-                point2.Position = line.GetEndPoint(1);
-
-                result.Add(adaptiveInstance);
-            }
-		}
-
-		if (result is null) throw new NullReferenceException();
-
-		_dto.OuterBorderPlacedFamilyInstances = result;
-	}
-
-	public void SetOuterBorderPlacedFamilyInstancesHeight(List<string> _telemetry)
-	{
-		foreach (FamilyInstance instance in _dto.OuterBorderPlacedFamilyInstances!)
-		{
-			RevitFamily.SetParameterValueByParameterNameTransactionless(instance, "Height", _dto.InterestFloorDFMAData.Thickness);
-		}
-	}
-
-	public void SetOuterBorderPlacedFamilyInstancesThickness(List<string> _telemetry)
-	{
-		foreach (FamilyInstance instance in _dto.OuterBorderPlacedFamilyInstances!)
-		{
-			RevitFamily.SetParameterValueByParameterNameTransactionless(instance, "Thickness", CARDBOARD_THICKNESS);
-		}
-	}
 }
 
 public class GenerateMarkedFloorsDFMADto : Dto
@@ -241,12 +133,14 @@ public class GenerateMarkedFloorsDFMADto : Dto
 	public Floor InterestFloor { get; set; }
 
 
-    [Print(nameof(TypeFormatter.Floor))]
     public FloorDFMAData InterestFloorDFMAData { get; set; }
 
 
     [Print(nameof(TypeFormatter.LineList))]
     public List<Line> OuterCurveLoopInternalOffsetBoundary { get; set; }
+
+
+    public DirectShapeDMFAData BottomFaceDirectShapeDMFAData { get; set; }
 
 	public List<Line> OuterCurveLoopDisplacedLines { get; set; }
 

@@ -26,13 +26,20 @@ internal class RevitDFMA_ExtractFloorData(Document doc, string workflowName)
         /* 5 */
         Add(GetFamilyInstancesCommonHeight);
         /* 6 */
-        Add(GetInterestFloorTopFaceOuterCurveLoop);
+        Add(GetInterestFloorOuterCurveLoop);
         /* 7 */
         Add(SetResult);
     }
     public void GetInterestFloorTopFace(List<string> _telemetry)
     {
-        var result = RevitFace.Top(_dto.InterestFloor!);
+        IList<Reference> references = HostObjectUtils.GetTopFaces(_dto.InterestFloor as HostObject);
+
+        if (references.Count == 0)
+        {
+            throw new Exception($"No top face found for element with id: {_dto.InterestFloor.Id}");
+        }
+
+        var result = _dto.InterestFloor.GetGeometryObjectFromReference(references[0]) as Face;
 
         if (result is null) throw new NullReferenceException();
 
@@ -41,7 +48,14 @@ internal class RevitDFMA_ExtractFloorData(Document doc, string workflowName)
 
     public void GetInterestFloorBottomFace(List<string> _telemetry)
     {
-        var result = RevitFace.Bottom(_dto.InterestFloor!);
+        IList<Reference> references = HostObjectUtils.GetBottomFaces(_dto.InterestFloor as HostObject);
+
+        if (references.Count == 0)
+        {
+            throw new Exception($"No top face found for element with id: {_dto.InterestFloor.Id}");
+        }
+
+        var result = _dto.InterestFloor.GetGeometryObjectFromReference(references[0]) as Face;
 
         if (result is null) throw new NullReferenceException();
 
@@ -50,13 +64,7 @@ internal class RevitDFMA_ExtractFloorData(Document doc, string workflowName)
 
     public void GetInterestFloorTopFaceHighestPoint(List<string> _telemetry)
     {
-        var curveLoops = _dto.InterestFloorTopFace.GetEdgesAsCurveLoops();
-
-        var curves = curveLoops.SelectMany(a => a).ToList();
-
-        var points = curves.Select(a => a.GetEndPoint(0)).Concat(curves.Select(a => a.GetEndPoint(1))).ToList();
-
-        var result = points.OrderByDescending(a => a.Z).First();
+        var result = this.GetHighestPointOnFace(_dto.InterestFloorTopFace);
 
         if (result is null) throw new NullReferenceException();
 
@@ -65,17 +73,22 @@ internal class RevitDFMA_ExtractFloorData(Document doc, string workflowName)
 
     public void GetInterestFloorBottomFaceLowestPoint(List<string> _telemetry)
     {
-        var curveLoops = _dto.InterestFloorBottomFace.GetEdgesAsCurveLoops();
+        var result = this.GetHighestPointOnFace(_dto.InterestFloorBottomFace);
+
+        if (result is null) throw new NullReferenceException();
+
+        _dto.InterestFloorBottomFaceLowestPoint = result;
+    }
+
+    public XYZ GetHighestPointOnFace(Face face)
+    {
+        var curveLoops = face.GetEdgesAsCurveLoops();
 
         var curves = curveLoops.SelectMany(a => a).ToList();
 
         var points = curves.Select(a => a.GetEndPoint(0)).Concat(curves.Select(a => a.GetEndPoint(1))).ToList();
 
-        var result = points.OrderBy(a => a.Z).First();
-
-        if (result is null) throw new NullReferenceException();
-
-        _dto.InterestFloorBottomFaceLowestPoint = result;
+        return points.OrderBy(a => a.Z).First();
     }
 
     public void GetFamilyInstancesCommonHeight(List<string> _telemetry)
@@ -87,9 +100,46 @@ internal class RevitDFMA_ExtractFloorData(Document doc, string workflowName)
         _dto.FamilyInstancesCommonHeight = result;
     }
 
-    public void GetInterestFloorTopFaceOuterCurveLoop(List<string> _telemetry)
+    public void GetInterestFloorOuterCurveLoop(List<string> _telemetry)
     {
-        var result = RevitFace.OuterCurveLoop(_dto.InterestFloorTopFace!);
+        CurveLoop result = null;
+
+        var face = _dto.InterestFloorBottomFace;
+
+        IList<CurveLoop> loops = face.GetEdgesAsCurveLoops();
+
+        if (loops.Count.Equals(1))
+        {
+            result = loops[0];
+        }
+        else if (face is PlanarFace planarFace)
+        {
+            XYZ normal = planarFace.FaceNormal;
+
+            foreach (CurveLoop loop in loops)
+            {
+                if (loop.IsCounterclockwise(normal))
+                {
+                    result = loop;
+                    break;
+                }
+            }
+        }
+        else
+        {
+            BoundingBoxUV bbox = face.GetBoundingBox();
+            UV center = new UV((bbox.Min.U + bbox.Max.U) / 2, (bbox.Min.V + bbox.Max.V) / 2);
+            XYZ normal = face.ComputeNormal(center);
+
+            foreach (CurveLoop loop in loops)
+            {
+                if (loop.IsCounterclockwise(normal))
+                {
+                    result = loop;
+                    break;
+                }
+            }
+        }
 
         if (result is null) throw new NullReferenceException();
 

@@ -29,17 +29,23 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
     {
         /* 1 */
         Add(RunPrepareFamilyWorkflow);
+
         /* 2 */
         Add(GetAllFloors);
+
         /* 3 */
         Add(GetInterestFloorByMarkParameter);
+
         /* 4 */
         Add(RunGetInterestFloorDMFADataWorkflow);
+
         /* 5 */
         Add(ModelBottomFace);
-        /* 5 */
+
+        /* 6 */
         Add(RunGenerateCurveLoopInternalOffsetBoundaryWorkflow);
-        /* 5 */
+
+        /* 7 */
         Add(ModelBottomInternalFace);
 
         //Add(ModelOuterCurveLoopPointsOnDedicatedTransaction, true, Framework.TransactionManagementOptions.RequiresDedicatedTransactionForAction);
@@ -89,12 +95,6 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
 
     public void RunGetInterestFloorDMFADataWorkflow(List<string> _telemetry)
     {
-        //var subworkflow = new RevitDFMA_ExtractFloorData(_doc!, this.GetType().Name);
-        //subworkflow.SafelyInitializeInputs([_dto.InterestFloor]);
-        //subworkflow.Execute();
-        //if (subworkflow.Result is null) throw new NullReferenceException();
-        //_dto.InterestFloorDFMAData = subworkflow.Result;
-
         _dto.InterestFloorDFMAData = RunSubworkflow<
             RevitDFMA_ExtractFloorData,
             RevitDFMA_ExtractFloorDataDto,
@@ -106,12 +106,6 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
 
     public void ModelBottomFace(List<string> _telemetry)
     {
-        //var subWorkflow = new DirectShape_ModelPlanarByBoundaryLines(_doc!, _workflowName!);
-        //subWorkflow.SafelyInitializeInputs([_dto.InterestFloorDFMAData.OuterCurveLoop.Select(a => a as Line).ToList()!, XYZ.BasisZ, CARDBOARD_THICKNESS, "BottomFace"]);
-        //subWorkflow.Execute();
-        //if (subWorkflow.Result is null) throw new NullReferenceException(nameof(subWorkflow.Result));
-        //_dto.BottomFaceDirectShapeDMFAData = subWorkflow.Result;
-
         _dto.BottomFaceDirectShapeDMFAData = RunSubworkflow<
             DirectShape_ModelPlanarByBoundaryLines,
             DirectShape_ModelByBoundaryLinesDto,
@@ -123,12 +117,6 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
 
     public void RunGenerateCurveLoopInternalOffsetBoundaryWorkflow(List<string> _telemetry)
     {
-        //var subWorkflow = new CurveLoop_GenerateInnerOffsetBoundary(_doc!, _workflowName!);
-        //subWorkflow.SafelyInitializeInputs([_dto.InterestFloorDFMAData.OuterCurveLoop!, CARDBOARD_THICKNESS, CARDBOARD_THICKNESS, XYZ.BasisZ.Negate()]);
-        //subWorkflow.Execute();
-        //if (subWorkflow.Result is null) throw new NullReferenceException(nameof(subWorkflow.Result));
-        //_dto.OuterCurveLoopInternalOffsetBoundary = subWorkflow.Result;
-
         _dto.OuterCurveLoopInternalOffsetBoundary = RunSubworkflow<
             CurveLoop_GenerateInnerOffsetBoundary,
             RevitCurveLoop_GenerateInnerOffsetBoundaryDto,
@@ -140,12 +128,6 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
 
     public void ModelBottomInternalFace(List<string> _telemetry)
     {
-        //var subWorkflow = new DirectShape_ModelPlanarByBoundaryLines(_doc!, _workflowName!);
-        //subWorkflow.SafelyInitializeInputs([_dto.OuterCurveLoopInternalOffsetBoundary!, XYZ.BasisZ, CARDBOARD_THICKNESS, "BottomInternalFace"]);
-        //subWorkflow.Execute();
-        //if (subWorkflow.Result is null) throw new NullReferenceException(nameof(subWorkflow.Result));
-        //_dto.BottomFaceDirectShapeDMFAData = subWorkflow.Result;
-
         _dto.BottomFaceDirectShapeDMFAData = RunSubworkflow<
             DirectShape_ModelPlanarByBoundaryLines,
             DirectShape_ModelByBoundaryLinesDto,
@@ -157,11 +139,13 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
 
     private void GenerateOuterCurveLoopDisplacedLines(List<string> telemetry)
     {
-        var subWorkflow = new LineList_GenerateDisplacedLinesWorkflow(_doc!, _workflowName!);
-        subWorkflow.SafelyInitializeInputs([_dto.OuterCurveLoopInternalOffsetBoundary, CARDBOARD_THICKNESS]);
-        subWorkflow.Execute();
-        if (subWorkflow.Result is null) throw new NullReferenceException(nameof(subWorkflow.Result));
-        _dto.OuterCurveLoopDisplacedLines = subWorkflow.Result;
+        _dto.OuterCurveLoopDisplacedLines = RunSubworkflow<
+            LineList_GenerateDisplacedLinesWorkflow,
+            LineList_GenerateDisplacedLinesWorkflowDto,
+            List<Line>
+            >(
+                [_dto.OuterCurveLoopInternalOffsetBoundary, CARDBOARD_THICKNESS]
+            );
     }
 
     public override void SafelyInitializeInputs(object[] args)

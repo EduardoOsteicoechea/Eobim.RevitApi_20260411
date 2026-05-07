@@ -1,12 +1,11 @@
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using System.Text.Json;
-using System.Windows.Controls;
 
 namespace Eobim.RevitApi.Framework;
 
 
-public abstract class ExternalCommand<Dto> : ManagedWorkflow<Dto>, IExternalCommand where Dto : class, IDto, new()
+public abstract class ExternalCommand<Dto, TResult> : ManagedWorkflow<Dto, TResult>, IExternalCommand where Dto : class, IDto, new()
 {
     protected override void SetCriticalVariables()
     {
@@ -24,10 +23,9 @@ public abstract class ExternalCommand<Dto> : ManagedWorkflow<Dto>, IExternalComm
     }
 }
 
-public abstract class MultistepObservableAction<Dto, TResult> : ManagedWorkflow<Dto>
+public abstract class MultistepObservableAction<Dto, TResult> : ManagedWorkflow<Dto, TResult>
     where Dto : class, IDto, new()
 {
-    public TResult? Result { get; protected set; }
     public string _parentCommandName { get; protected set; }
 
     public MultistepObservableAction(Document doc, string parentCommandName)
@@ -36,13 +34,11 @@ public abstract class MultistepObservableAction<Dto, TResult> : ManagedWorkflow<
         _parentCommandName = parentCommandName;
     }
 
-    public abstract void SafelyInitializeInputs(object[] args);
-
     protected override void SetCriticalVariables()
     {
         _workflowName = this.GetType().Name;
 
-        _fileSystemManager = new FileSystemManager(_doc.Title, _workflowName, _parentCommandName);
+        _fileSystemManager = new FileSystemManager(_doc!.Title, _workflowName, _parentCommandName);
 
         _workflowObservableData = new WorkflowObservableData
         {
@@ -52,8 +48,15 @@ public abstract class MultistepObservableAction<Dto, TResult> : ManagedWorkflow<
     }
 }
 
+public interface ISubworkflow <Dto, TResult>
+{
+    public void SafelyInitializeInputs(object[] args);
+    public void Execute();
+    public TResult Result { get; set; }
+}
 
-public abstract class ManagedWorkflow<Dto> where Dto : class, IDto, new()
+
+public abstract class ManagedWorkflow<Dto, TResult>: ISubworkflow<Dto, TResult> where Dto : class, IDto, new()
 {
     protected ExternalCommandData? _commandData;
     protected Document? _doc;
@@ -61,11 +64,25 @@ public abstract class ManagedWorkflow<Dto> where Dto : class, IDto, new()
     protected FileSystemManager? _fileSystemManager;
     protected WorkflowObservableData? _workflowObservableData;
     protected Dto _dto = new();
+    public TResult Result { get; set; }
     private readonly List<(Action<List<string>> action, bool mustLogAction, TransactionManagementOptions transactionManagementOption)> _actions = [];
 
     protected void Add(Action<List<string>> a, bool mustLogAction = false, TransactionManagementOptions b = TransactionManagementOptions.TransactionlessAction)
     {
         _actions.Add((a, mustLogAction, b));
+    }
+
+    public abstract void SafelyInitializeInputs(object[] args);
+
+    protected UResult RunSubworkflow<TSubworkflow, TSubDto, UResult>(object[] args)
+    where TSubworkflow : ISubworkflow<TSubDto, UResult>
+    where TSubDto : class, IDto, new()
+    {
+        var subWorkflow = (TSubworkflow)Activator.CreateInstance(typeof(TSubworkflow), [_doc!, _workflowName!]);
+        subWorkflow!.SafelyInitializeInputs(args);
+        subWorkflow.Execute();
+        if (subWorkflow.Result is null) throw new NullReferenceException($"null result in {subWorkflow.GetType().FullName}");
+        return subWorkflow.Result;
     }
 
     public void Execute()

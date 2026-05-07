@@ -1,12 +1,12 @@
 ﻿using Autodesk.Revit.DB;
 using Eobim.RevitApi.Framework;
 using System.IO;
+using System.Windows;
 
 namespace Eobim.RevitApi.MultiStepActions;
 
 public class RevitFamily_EntirelySetForUssageInRevitUI(Document doc, string workflowName)
-:
-MultistepObservableAction<RevitFamily_EntirelySetForUssageInRevitUIDto, FamilySymbol>(doc, workflowName)
+    : MultistepObservableAction<RevitFamily_EntirelySetForUssageInRevitUIDto, FamilySymbol>(doc, workflowName)
 {
     public override void SafelyInitializeInputs(object[] args)
     {
@@ -17,24 +17,29 @@ MultistepObservableAction<RevitFamily_EntirelySetForUssageInRevitUIDto, FamilySy
 
     protected override void SetActions()
     {
-        /* 1 */ Add(LoadCommonCardboardFamily);
-        /* 2 */ Add(GetCommonCardboardFamilySymbol);
-        /* 3 */ Add(ActivateCommonCardboardFamilySymbol, false, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
-        /* 4 */ Add(SetResult);
+        /* 1 */
+        Add(LoadCommonCardboardFamily, false, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
+        /* 2 */
+        Add(GetCommonCardboardFamilySymbol);
+        /* 3 */
+        Add(ActivateCommonCardboardFamilySymbol, false, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
+        /* 4 */
+        Add(SetResult);
     }
 
     public void LoadCommonCardboardFamily(List<string> _telemetry)
     {
-        if (!File.Exists(_dto.FamilyPath))
+        if (string.IsNullOrEmpty(_dto.FamilyPath) || !File.Exists(_dto.FamilyPath))
         {
-            throw new ArgumentException("Invalid Path");
+            throw new ArgumentException($"Invalid Path: {_dto.FamilyPath}");
         }
 
-        //doc.LoadFamily(_dto.FamilyPath, out Family result); // for some reason returns null;
-        //if (result is null) throw new NullReferenceException();
-        //_dto.Family = result;
+        bool didLoad = doc.LoadFamily(_dto.FamilyPath, out Family _);
 
-        doc.LoadFamily(_dto.FamilyPath, out Family _);
+        if (!didLoad)
+        {
+            _telemetry.Add("Note: doc.LoadFamily returned false. The family might already be loaded in the document or requires overwrite options.");
+        }
     }
 
     public void GetCommonCardboardFamilySymbol(List<string> _telemetry)
@@ -45,15 +50,18 @@ MultistepObservableAction<RevitFamily_EntirelySetForUssageInRevitUIDto, FamilySy
         var result = collector
             .Cast<FamilySymbol>()
             .FirstOrDefault(
-                sym => 
-                    sym.FamilyName.Equals(_dto.FamilyName) 
-                    && 
-                    sym.Name.Equals(_dto.FamilyTypeName)
+                sym =>
+                    sym.FamilyName == _dto.FamilyName
+                    &&
+                    sym.Name == _dto.FamilyTypeName
                 );
 
-        if (result is null) throw new NullReferenceException();
+        if (result is null)
+        {
+            throw new Exception($"Failed to find FamilySymbol. FamilyName: '{_dto.FamilyName}', TypeName: '{_dto.FamilyTypeName}'. Ensure the family was loaded successfully.");
+        }
 
-        _dto.FamilySymbol = result;
+        _dto.FamilySymbol = (FamilySymbol)result;
     }
 
     public void ActivateCommonCardboardFamilySymbol(List<string> _telemetry)
@@ -74,18 +82,11 @@ public class RevitFamily_EntirelySetForUssageInRevitUIDto : Dto
     [Print(nameof(TypeFormatter.String))]
     public string FamilyPath { get; set; }
 
-
     [Print(nameof(TypeFormatter.String))]
     public string FamilyName { get; set; }
 
-
     [Print(nameof(TypeFormatter.String))]
     public string FamilyTypeName { get; set; }
-
-
-    //[Print(nameof(TypeFormatter.Family))] // See not about family at the top of the class.
-    //public Family Family { get; set; }
-
 
     [Print(nameof(TypeFormatter.FamilySymbol))]
     public FamilySymbol FamilySymbol { get; set; }

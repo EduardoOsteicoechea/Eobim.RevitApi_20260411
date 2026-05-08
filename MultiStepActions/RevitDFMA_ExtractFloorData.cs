@@ -17,17 +17,26 @@ internal class RevitDFMA_ExtractFloorData(Document doc, string workflowName)
     {
         /* 1 */
         Add(GetInterestFloorTopFace);
+
         /* 2 */
         Add(GetInterestFloorBottomFace);
+
         /* 3 */
         Add(GetInterestFloorTopFaceHighestPoint);
+
         /* 4 */
         Add(GetInterestFloorBottomFaceLowestPoint);
+
         /* 5 */
         Add(GetFamilyInstancesCommonHeight);
+
         /* 6 */
-        Add(GetInterestFloorOuterCurveLoop);
+        Add(GetInterestFloorBottomFaceOuterCurveLoop);
+
         /* 7 */
+        Add(GetInterestFloorTopFaceOuterCurveLoop);
+
+        /* 8 */
         Add(SetResult);
     }
     public void GetInterestFloorTopFace(List<string> _telemetry)
@@ -100,11 +109,27 @@ internal class RevitDFMA_ExtractFloorData(Document doc, string workflowName)
         _dto.FamilyInstancesCommonHeight = result;
     }
 
-    public void GetInterestFloorOuterCurveLoop(List<string> _telemetry)
+    public void GetInterestFloorBottomFaceOuterCurveLoop(List<string> _telemetry)
+    {
+        CurveLoop result = GetFaceOuterCurveLoop(_telemetry, _dto.InterestFloorBottomFace);
+
+        if (result is null) throw new NullReferenceException();
+
+        _dto.BottomFaceOuterCurveLoop = result;
+    }
+
+    public void GetInterestFloorTopFaceOuterCurveLoop(List<string> _telemetry)
+    {
+        CurveLoop result = GetFaceOuterCurveLoop(_telemetry, _dto.InterestFloorTopFace);
+
+        if (result is null) throw new NullReferenceException();
+
+        _dto.TopFaceOuterCurveLoop = result;
+    }
+
+    public CurveLoop GetFaceOuterCurveLoop(List<string> _telemetry, Face face)
     {
         CurveLoop result = null;
-
-        var face = _dto.InterestFloorBottomFace;
 
         IList<CurveLoop> loops = face.GetEdgesAsCurveLoops();
 
@@ -143,7 +168,7 @@ internal class RevitDFMA_ExtractFloorData(Document doc, string workflowName)
 
         if (result is null) throw new NullReferenceException();
 
-        _dto.OuterCurveLoop = result;
+        return result;
     }
 
     public void SetResult(List<string> _telemetry)
@@ -159,7 +184,8 @@ internal class RevitDFMA_ExtractFloorData(Document doc, string workflowName)
             TopFaceHighestPoint = _dto.InterestFloorTopFaceHighestPoint,
             BottomFaceLowestPoint = _dto.InterestFloorBottomFaceLowestPoint,
             Thickness = _dto.FamilyInstancesCommonHeight,
-            OuterCurveLoop = _dto.OuterCurveLoop
+            BottomFaceOuterCurveLoop = _dto.BottomFaceOuterCurveLoop,
+            TopFaceOuterCurveLoop = _dto.TopFaceOuterCurveLoop
         };
     }
 }
@@ -175,7 +201,8 @@ public class FloorDFMAData
     public XYZ TopFaceHighestPoint { get; set; }
     public XYZ BottomFaceLowestPoint { get; set; }
     public double Thickness { get; set; }
-    public CurveLoop OuterCurveLoop { get; set; }
+    public CurveLoop TopFaceOuterCurveLoop { get; set; }
+    public CurveLoop BottomFaceOuterCurveLoop { get; set; }
 }
 
 public class RevitDFMA_ExtractFloorDataDto : Dto
@@ -199,5 +226,8 @@ public class RevitDFMA_ExtractFloorDataDto : Dto
     public double FamilyInstancesCommonHeight { get; set; }
 
     [Print(nameof(TypeFormatter.CurveLoop))]
-    public CurveLoop OuterCurveLoop { get; set; }
+    public CurveLoop BottomFaceOuterCurveLoop { get; set; }
+
+    [Print(nameof(TypeFormatter.CurveLoop))]
+    public CurveLoop TopFaceOuterCurveLoop { get; set; }
 }

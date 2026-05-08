@@ -22,6 +22,11 @@ public class FileSystemManager
         _filePath = Path.Combine(_instanceLogDirectory, multistepActionName, $"{commandName}.json");
 
         ValidateLogDirectory();
+
+        if (File.Exists(_filePath))
+        {
+            _filePath = Path.Combine(_instanceLogDirectory, multistepActionName, $"{commandName}_{1}.json");
+        }
     }
 
     private void ValidateLogDirectory()

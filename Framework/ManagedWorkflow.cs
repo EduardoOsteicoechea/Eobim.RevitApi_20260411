@@ -60,6 +60,7 @@ public abstract class ManagedWorkflow<Dto, TResult>: ISubworkflow<Dto, TResult> 
 {
     protected ExternalCommandData? _commandData;
     protected Document? _doc;
+    protected string? _parentWorkflowName;
     protected string? _workflowName;
     protected FileSystemManager? _fileSystemManager;
     protected WorkflowObservableData? _workflowObservableData;
@@ -67,7 +68,7 @@ public abstract class ManagedWorkflow<Dto, TResult>: ISubworkflow<Dto, TResult> 
     public TResult Result { get; set; }
     private readonly List<(Action<List<string>> action, bool mustLogAction, TransactionManagementOptions transactionManagementOption)> _actions = [];
 
-    protected void Add(Action<List<string>> a, bool mustLogAction = false, TransactionManagementOptions b = TransactionManagementOptions.TransactionlessAction)
+    protected void Add(Action<List<string>> a, bool mustLogAction = true, TransactionManagementOptions b = TransactionManagementOptions.TransactionlessAction)
     {
         _actions.Add((a, mustLogAction, b));
     }
@@ -78,7 +79,8 @@ public abstract class ManagedWorkflow<Dto, TResult>: ISubworkflow<Dto, TResult> 
     where TSubworkflow : ISubworkflow<TSubDto, UResult>
     where TSubDto : class, IDto, new()
     {
-        var subWorkflow = (TSubworkflow)Activator.CreateInstance(typeof(TSubworkflow), [_doc!, _workflowName!]);
+        Type subworkflowType = typeof(TSubworkflow);
+        var subWorkflow = (TSubworkflow)Activator.CreateInstance(subworkflowType, [_doc!, _workflowName!]);
         subWorkflow!.SafelyInitializeInputs(args);
         subWorkflow.Execute();
         if (subWorkflow.Result is null) throw new NullReferenceException($"null result in {subWorkflow.GetType().FullName}");

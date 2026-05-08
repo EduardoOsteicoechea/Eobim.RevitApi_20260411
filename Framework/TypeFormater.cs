@@ -365,9 +365,27 @@ public static class TypeFormatter
 		printer.Append($"]");
 
 		return printer.ToString();
-	}
+    }
 
-	public static string Line(Line data)
+    public static string LineListList(List<List<Line>> data)
+    {
+        if (data == null) return "[null]";
+
+        var printer = new StringBuilder();
+
+        printer.Append($"[");
+
+        foreach (List<Line> item in data)
+        {
+            printer.Append($"({LineList(item)}), ");
+        }
+
+        printer.Append($"]");
+
+        return printer.ToString();
+    }
+
+    public static string Line(Line data)
 	{
 		if (data == null) return "[null]";
 

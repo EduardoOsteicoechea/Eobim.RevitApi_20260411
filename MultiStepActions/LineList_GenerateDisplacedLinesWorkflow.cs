@@ -30,10 +30,8 @@ MultistepObservableAction<LineList_GenerateDisplacedLinesWorkflowDto, List<Line>
             XYZ direction = (p1 - p0).Normalize().Negate();
 
             // Displace the START point forward by the cardboard thickness
-            XYZ newP0 = p0 + (direction * (_dto.DisplacementThickness * 0.5));
-            XYZ newP1 = p1 + (direction * (_dto.DisplacementThickness * 0.5));
-
-
+            XYZ newP0 = p0 + (direction * (_dto.DisplacementThickness * 1));
+            XYZ newP1 = p1 + (direction * (_dto.DisplacementThickness * 1));
 
             // Safety check: Ensure the line hasn't been shrunk out of existence
             if (newP0.DistanceTo(newP1) > 0.004)

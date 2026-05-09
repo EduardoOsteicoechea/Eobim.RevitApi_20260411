@@ -168,11 +168,8 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
     }
 
     /////////////////////////////////
-    /////////////////////////////////
     /// Top Face
     /////////////////////////////////
-    /////////////////////////////////
-
     public void ModelTopFace(List<string> _telemetry)
     {
         _dto.TopFaceDirectShapeDMFAData = RunSubworkflow<
@@ -183,7 +180,6 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
             [_dto.InterestFloorDFMAData.TopFaceOuterCurveLoop.Select(a => a as Line).ToList()!, XYZ.BasisZ.Negate(), CARDBOARD_THICKNESS, "TopFace"]
         );
     }
-
     public void GenerateCurveLoopInternalOffsetBoundaryWorkflowForTopFace(List<string> _telemetry)
     {
         _dto.TopFaceOuterCurveLoopInternalOffsetBoundary = RunSubworkflow<
@@ -194,7 +190,6 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
             [_dto.InterestFloorDFMAData.TopFaceOuterCurveLoop!, CARDBOARD_THICKNESS, -CARDBOARD_THICKNESS, XYZ.BasisZ]
         );
     }
-
     public void ModelTopInternalFace(List<string> _telemetry)
     {
         _dto.TopInternalFaceDirectShapeDMFAData = RunSubworkflow<
@@ -211,7 +206,6 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
     /// Vertical External Faces
     /////////////////////////////////
     /////////////////////////////////
-
     private void GenerateBottomFaceOuterCurveLoopDisplacedLines(List<string> telemetry)
     {
         _dto.BottomFaceOuterCurveLoopDisplacedLines = RunSubworkflow<
@@ -222,7 +216,6 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
             [_dto.InterestFloorDFMAData.BottomFaceOuterCurveLoop.Select(a => a as Line).ToList()!, CARDBOARD_THICKNESS]
         );
     }
-
     private void GenerateBottomFaceOuterCurveLoopDisplacedLinesPiecesContoursCurveLoops(List<string> telemetry)
     {
         _dto.BottomFaceOuterCurveLoopDisplacedLinesPiecesContours = RunSubworkflow<
@@ -233,7 +226,6 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
             [_dto.BottomFaceOuterCurveLoopDisplacedLines, CARDBOARD_THICKNESS]
         );
     }
-
     public void ModelBottomFaceOuterCurveLoopDisplacedLinesPiecesContours(List<string> _telemetry)
     {
         var pieceHeight = _dto.InterestFloorDFMAData.TopFaceHighestPoint.Z - _dto.InterestFloorDFMAData.BottomFaceLowestPoint.Z;

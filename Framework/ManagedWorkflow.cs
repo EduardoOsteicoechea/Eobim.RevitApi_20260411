@@ -98,32 +98,32 @@ public abstract class ManagedWorkflow<Dto, TResult>: ISubworkflow<Dto, TResult> 
 
         SetActions();
 
-        bool isEntirelyTransactionless = _actions.All(a => a.transactionManagementOption == TransactionManagementOptions.TransactionlessAction);
+        //bool isEntirelyTransactionless = _actions.All(a => a.transactionManagementOption == TransactionManagementOptions.TransactionlessAction);
 
-        using (TransactionGroup? transGroup = isEntirelyTransactionless ? null : new TransactionGroup(_doc, _workflowName))
-        {
+        //using (TransactionGroup? transGroup = isEntirelyTransactionless ? null : new TransactionGroup(_doc, _workflowName))
+        //{
             try
             {
-                transGroup?.Start();
+                //transGroup?.Start();
 
                 ExecuteCorrespondingWorkflowTransactionApproach();
 
-                transGroup?.Assimilate();
+                //transGroup?.Assimilate();
             }
-            catch (Exception)
-            {
-                if (transGroup?.HasStarted() == true)
-                {
-                    transGroup.RollBack();
-                }
+            //catch (Exception)
+            //{
+            //    //if (transGroup?.HasStarted() == true)
+            //    //{
+            //    //    transGroup.RollBack();
+            //    //}
 
-                throw;
-            }
+            //    throw;
+            //}
             finally
             {
                 RecordData();
             }
-        }
+        //}
     }
 
     public Autodesk.Revit.UI.Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
@@ -142,21 +142,22 @@ public abstract class ManagedWorkflow<Dto, TResult>: ISubworkflow<Dto, TResult> 
 
         bool isEntirelyTransactionless = _actions.All(a => a.transactionManagementOption == TransactionManagementOptions.TransactionlessAction);
 
-        using (TransactionGroup? transGroup = isEntirelyTransactionless ? null : new TransactionGroup(_doc, _workflowName))
+        //using (TransactionGroup? transGroup = isEntirelyTransactionless ? null : new TransactionGroup(_doc, _workflowName))
+        using (TransactionGroup? transGroup = new TransactionGroup(_doc, _workflowName))
         {
             try
             {
-                transGroup?.Start();
+                transGroup.Start();
 
                 ExecuteCorrespondingWorkflowTransactionApproach();
 
-                transGroup?.Assimilate();
+                transGroup.Assimilate();
 
                 return Autodesk.Revit.UI.Result.Succeeded;
             }
             catch (Exception ex)
             {
-                if (transGroup?.HasStarted() == true)
+                if (transGroup.HasStarted() == true)
                 {
                     transGroup.RollBack();
                 }

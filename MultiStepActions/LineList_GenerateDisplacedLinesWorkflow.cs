@@ -37,23 +37,16 @@ MultistepObservableAction<LineList_GenerateDisplacedLinesWorkflowDto, List<Line>
             XYZ p1 = line.GetEndPoint(1);
 
             XYZ direction = (p1 - p0).Normalize();
-            //XYZ direction = (p1 - p0).Normalize().Negate();
 
-            // Displace both the START and END points
+            // Displace the whole line in the line direction.
             XYZ newP0 = p0 + (direction * _dto.DisplacementValue);
             XYZ newP1 = p1 + (direction * _dto.DisplacementValue);
 
-            // Safety check: Ensure the line hasn't been shrunk out of existence
-            //if (newP0.DistanceTo(newP1) > 0.004)
             // Discard small lines that get covered by the displacement of previous and following lines.
             if (newP0.DistanceTo(newP1) > _dto.DisplacementValue)
             {
                 result.Add(Line.CreateBound(newP0, newP1));
             }
-            //else
-            //{
-            //    result.Add(line);
-            //}
         }
 
         _dto.OutputDisplacedLines = result;

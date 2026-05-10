@@ -64,13 +64,27 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
         //Add(GenerateCurveLoopSegmentationFrame, true, Framework.TransactionManagementOptions.RequiresDedicatedTransactionForAction);
 
         /* 11 */
-        Add(GenerateBottomFaceOuterCurveLoopDisplacedLines);
+        Add(GenerateBottomFaceOffsetOuterCurveLoop);
 
         /* 12 */
-        Add(GenerateBottomFaceOuterCurveLoopDisplacedLinesPiecesContoursCurveLoops);
+        Add(GenerateBottomFaceOuterCurveLoopDisplacedLines);
 
         /* 13 */
+        Add(GenerateBottomFaceOuterCurveLoopDisplacedLinesPiecesContoursCurveLoops);
+
+        /* 14 */
         Add(ModelBottomFaceOuterCurveLoopDisplacedLinesPiecesContours);
+
+
+        /////////////////////////////////
+        /// Floor Internal Supports generation
+        /////////////////////////////////
+        /* 15 */
+        Add(GetInternalBottomShapeTopFace);
+        /* 16 */
+        //Add(GenerateBottomShapeTopFaceVerticalSubdivisoryLines);
+
+        Add(HideInterestFloor, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
     }
 
     public void RunPrepareFamilyWorkflow(List<string> _telemetry)
@@ -85,11 +99,8 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
     }
 
     /////////////////////////////////
-    /////////////////////////////////
     /// Floor Data preparation
     /////////////////////////////////
-    /////////////////////////////////
-
     public void GetAllFloors(List<string> _telemetry)
     {
         var result = RevitFilteredElementCollector.ByBuiltInCategory<Floor>(_doc!, BuiltInCategory.OST_Floors);
@@ -98,7 +109,6 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
         _telemetry.Add($"Floors count: {result.Count}");
         _dto.Floors = result;
     }
-
     public void GetInterestFloorByMarkParameter(List<string> _telemetry)
     {
         var result = _dto.Floors!.FirstOrDefault(a =>
@@ -116,7 +126,6 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
 
         _dto.InterestFloor = result;
     }
-
     public void GetInterestFloorDMFADataWorkflow(List<string> _telemetry)
     {
         _dto.InterestFloorDFMAData = RunSubworkflow<
@@ -129,11 +138,8 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
     }
 
     /////////////////////////////////
-    /////////////////////////////////
     /// Bottom Face
     /////////////////////////////////
-    /////////////////////////////////
-
     public void ModelBottomFace(List<string> _telemetry)
     {
         _dto.BottomFaceDirectShapeDMFAData = RunSubworkflow<
@@ -144,7 +150,6 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
             [_dto.InterestFloorDFMAData.BottomFaceOuterCurveLoop.Select(a => a as Line).ToList()!, XYZ.BasisZ, CARDBOARD_THICKNESS, "BottomFace"]
         );
     }
-
     public void GenerateCurveLoopInternalOffsetBoundaryWorkflow(List<string> _telemetry)
     {
         _dto.BottomFaceOuterCurveLoopInternalOffsetBoundary = RunSubworkflow<
@@ -155,7 +160,6 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
             [_dto.InterestFloorDFMAData.BottomFaceOuterCurveLoop!, CARDBOARD_THICKNESS, CARDBOARD_THICKNESS, XYZ.BasisZ.Negate()]
         );
     }
-
     public void ModelBottomInternalFace(List<string> _telemetry)
     {
         _dto.BottomInternalFaceDirectShapeDMFAData = RunSubworkflow<
@@ -202,10 +206,18 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
     }
 
     /////////////////////////////////
-    /////////////////////////////////
     /// Vertical External Faces
     /////////////////////////////////
-    /////////////////////////////////
+    private void GenerateBottomFaceOffsetOuterCurveLoop(List<string> telemetry)
+    {
+        _dto.BottomFaceOffsetOuterCurveLoop = RunSubworkflow<
+        CurveLoop_GenerateInnerOffsetBoundary,
+        RevitCurveLoop_GenerateInnerOffsetBoundaryDto,
+        List<Line>
+        >(
+            [_dto.InterestFloorDFMAData.BottomFaceOuterCurveLoop, -CARDBOARD_THICKNESS/2, CARDBOARD_THICKNESS, XYZ.BasisZ]
+        );
+    }
     private void GenerateBottomFaceOuterCurveLoopDisplacedLines(List<string> telemetry)
     {
         _dto.BottomFaceOuterCurveLoopDisplacedLines = RunSubworkflow<
@@ -213,7 +225,7 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
         LineList_GenerateDisplacedLinesWorkflowDto,
         List<Line>
         >(
-            [_dto.InterestFloorDFMAData.BottomFaceOuterCurveLoop.Select(a => a as Line).ToList()!, CARDBOARD_THICKNESS]
+            [_dto.BottomFaceOffsetOuterCurveLoop, CARDBOARD_THICKNESS]
         );
     }
     private void GenerateBottomFaceOuterCurveLoopDisplacedLinesPiecesContoursCurveLoops(List<string> telemetry)
@@ -228,7 +240,7 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
     }
     public void ModelBottomFaceOuterCurveLoopDisplacedLinesPiecesContours(List<string> _telemetry)
     {
-        var pieceHeight = _dto.InterestFloorDFMAData.TopFaceHighestPoint.Z - _dto.InterestFloorDFMAData.BottomFaceLowestPoint.Z;
+        var pieceHeight = (_dto.InterestFloorDFMAData.TopFaceHighestPoint.Z - _dto.InterestFloorDFMAData.BottomFaceLowestPoint.Z) - CARDBOARD_THICKNESS * 2;
 
         var bottomFaceOuterCurveLoopDisplacedLinesPiecesContoursCount = _dto.BottomFaceOuterCurveLoopDisplacedLinesPiecesContours.Count;
 
@@ -248,6 +260,47 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
         }
     }
 
+
+
+    /////////////////////////////////
+    /// Shape Internal Supports generation
+    /////////////////////////////////
+    public void GetInternalBottomShapeTopFace(List<string> _telemetry)
+    {
+        _dto.InternalBottomShapeTopFace = RunSubworkflow<
+        Face_FromDirectShape,
+        Face_FromDirectShapeDto,
+        Face
+        >(
+            [_dto.BottomInternalFaceDirectShapeDMFAData.DirectShape, "top"]
+        );
+    }
+    public void GenerateBottomShapeTopFaceVerticalSubdivisoryLines(List<string> _telemetry) 
+    {
+        _dto.BottomShapeTopFaceVerticalSubdivisoryLines = RunSubworkflow<
+        Face_SubdivideInInternalVerticalLines,
+        Face_SubdivideInInternalVerticalLinesDto,
+        List<Line>
+        >(
+            [_dto.InternalBottomShapeTopFace, (CARDBOARD_THICKNESS * 10)]
+        );
+    }
+
+
+
+    /////////////////////////////////
+    /// Cleanup
+    /////////////////////////////////
+    public void HideInterestFloor(List<string> _telemetry)
+    {
+        _doc!.ActiveView.HideElements([_dto.InterestFloor.Id]);
+    }
+
+    /////////////////////////////////
+    /////////////////////////////////
+    /// Template
+    /////////////////////////////////
+    /////////////////////////////////
     public override void SafelyInitializeInputs(object[] args)
     {
         throw new NotImplementedException();
@@ -256,20 +309,20 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
 
 public class GenerateMarkedFloorsDFMADto : Dto
 {
-    [Print(nameof(TypeFormatter.FloorList))]
+    //[Print(nameof(TypeFormatter.FloorList))]
     public List<Floor> Floors { get; set; }
 
-    [Print(nameof(TypeFormatter.Floor))]
+    //[Print(nameof(TypeFormatter.Floor))]
     public Floor InterestFloor { get; set; }
 
 
     public FloorDFMAData InterestFloorDFMAData { get; set; }
 
 
-    [Print(nameof(TypeFormatter.LineList))]
+    //[Print(nameof(TypeFormatter.LineList))]
     public List<Line> BottomFaceOuterCurveLoopInternalOffsetBoundary { get; set; }
 
-    [Print(nameof(TypeFormatter.LineList))]
+    //[Print(nameof(TypeFormatter.LineList))]
     public List<Line> TopFaceOuterCurveLoopInternalOffsetBoundary { get; set; }
 
 
@@ -283,10 +336,22 @@ public class GenerateMarkedFloorsDFMADto : Dto
     public DirectShapeDMFAData TopInternalFaceDirectShapeDMFAData { get; set; }
 
 
+    public List<Line> BottomFaceOffsetOuterCurveLoop { get; set; }
     public List<Line> BottomFaceOuterCurveLoopDisplacedLines { get; set; }
 
 
     public List<List<Line>> BottomFaceOuterCurveLoopDisplacedLinesPiecesContours { get; set; }
+
+
+    /////////////////////////////////
+    /// Shape Internal Supports generation
+    /////////////////////////////////
+    [Print(nameof(TypeFormatter.Face))]
+    public Face InternalBottomShapeTopFace { get; set; }
+
+    [Print(nameof(TypeFormatter.LineList))]
+    public List<Line> BottomShapeTopFaceVerticalSubdivisoryLines { get; set; }
+
 
 
     public List<Line> AdjustedInZCoordinateOuterCurveLoopDisplacedLines { get; set; }
@@ -297,6 +362,6 @@ public class GenerateMarkedFloorsDFMADto : Dto
     public Family CommonCarboardFamily { get; set; }
 
 
-    [Print(nameof(TypeFormatter.FamilyInstanceList))]
+    //[Print(nameof(TypeFormatter.FamilyInstanceList))]
     public List<FamilyInstance> OuterBorderPlacedFamilyInstances { get; set; }
 }

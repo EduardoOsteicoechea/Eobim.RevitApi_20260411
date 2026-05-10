@@ -918,7 +918,7 @@ public static class TypeFormatter
 	public static string Face(Face data)
 	{
 		if (data == null) return "[null]";
-		return $"{data.Id}";
+		return $"{data.Id}, {data.Area}";
 	}
 
 	public static string ElementIdFaceDictionary(Dictionary<ElementId, Face> items)

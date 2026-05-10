@@ -18,7 +18,7 @@ public abstract class ExternalCommand<Dto, TResult> : ManagedWorkflow<Dto, TResu
         _workflowObservableData = new WorkflowObservableData
         {
             DocumentTitle = _doc.Title,
-            WorkflowName = _workflowName
+            WorkflowName = _workflowName,
         };
     }
 }
@@ -30,7 +30,7 @@ public abstract class MultistepObservableAction<Dto, TResult> : ManagedWorkflow<
 
     public MultistepObservableAction(Document doc, string parentCommandName)
     {
-        _doc = doc;
+        _doc = doc ?? throw new ArgumentNullException(nameof(doc), "Please provide a valid Revit Document before running this workflow.");
         _parentCommandName = parentCommandName;
     }
 
@@ -38,25 +38,25 @@ public abstract class MultistepObservableAction<Dto, TResult> : ManagedWorkflow<
     {
         _workflowName = this.GetType().Name;
 
-        _fileSystemManager = new FileSystemManager(_doc!.Title, _workflowName, _parentCommandName);
+        _fileSystemManager = new FileSystemManager(_doc!.Title, _parentCommandName, _workflowName);
 
         _workflowObservableData = new WorkflowObservableData
         {
             DocumentTitle = _doc.Title,
-            WorkflowName = _workflowName
+            WorkflowName = _workflowName,
         };
     }
 }
 
-public interface ISubworkflow <Dto, TResult>
+public interface ISubworkflow<Dto, TResult>
 {
     public void SafelyInitializeInputs(object[] args);
-    public void Execute();
+    public void Execute(int executedActionCounter);
     public TResult Result { get; set; }
 }
 
 
-public abstract class ManagedWorkflow<Dto, TResult>: ISubworkflow<Dto, TResult> where Dto : class, IDto, new()
+public abstract class ManagedWorkflow<Dto, TResult> : ISubworkflow<Dto, TResult> where Dto : class, IDto, new()
 {
     protected ExternalCommandData? _commandData;
     protected Document? _doc;
@@ -66,6 +66,8 @@ public abstract class ManagedWorkflow<Dto, TResult>: ISubworkflow<Dto, TResult> 
     protected WorkflowObservableData? _workflowObservableData;
     protected Dto _dto = new();
     public TResult Result { get; set; }
+    public int _executedActionCounter { get; set; } = 0;
+
     private readonly List<(Action<List<string>> action, bool mustLogAction, TransactionManagementOptions transactionManagementOption)> _actions = [];
 
     protected void Add(Action<List<string>> a, bool mustLogAction = true, TransactionManagementOptions b = TransactionManagementOptions.TransactionlessAction)
@@ -75,6 +77,8 @@ public abstract class ManagedWorkflow<Dto, TResult>: ISubworkflow<Dto, TResult> 
 
     public abstract void SafelyInitializeInputs(object[] args);
 
+
+
     protected UResult RunSubworkflow<TSubworkflow, TSubDto, UResult>(object[] args)
     where TSubworkflow : ISubworkflow<TSubDto, UResult>
     where TSubDto : class, IDto, new()
@@ -82,50 +86,29 @@ public abstract class ManagedWorkflow<Dto, TResult>: ISubworkflow<Dto, TResult> 
         Type subworkflowType = typeof(TSubworkflow);
         var subWorkflow = (TSubworkflow)Activator.CreateInstance(subworkflowType, [_doc!, _workflowName!]);
         subWorkflow!.SafelyInitializeInputs(args);
-        subWorkflow.Execute();
+        subWorkflow.Execute(_executedActionCounter);
         if (subWorkflow.Result is null) throw new NullReferenceException($"null result in {subWorkflow.GetType().FullName}");
         return subWorkflow.Result;
     }
 
-    public void Execute()
+
+
+    public void Execute(int executedActionCounter = 0)
     {
         SetCriticalVariables();
-
-        if (_doc is null)
-        {
-            throw new Exception("Please provide a valid Revit Document before running this workflow.");
-        }
-
         SetActions();
-
-        //bool isEntirelyTransactionless = _actions.All(a => a.transactionManagementOption == TransactionManagementOptions.TransactionlessAction);
-
-        //using (TransactionGroup? transGroup = isEntirelyTransactionless ? null : new TransactionGroup(_doc, _workflowName))
-        //{
-            try
-            {
-                //transGroup?.Start();
-
-                ExecuteCorrespondingWorkflowTransactionApproach();
-
-                //transGroup?.Assimilate();
-            }
-            //catch (Exception)
-            //{
-            //    //if (transGroup?.HasStarted() == true)
-            //    //{
-            //    //    transGroup.RollBack();
-            //    //}
-
-            //    throw;
-            //}
-            finally
-            {
-                RecordData();
-            }
-        //}
+        // NEVER REMOVE THE FOLLOWING try-finally bellow.
+        // This enables the telemetry workflow to report errors and processed data at this point even in failures.
+        // Don't catch here, let it bubble up to the caller
+        try
+        {
+            ExecuteCorrespondingWorkflowTransactionApproach();
+        }
+        finally
+        {
+            RecordData(executedActionCounter);
+        }
     }
-
     public Autodesk.Revit.UI.Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
     {
         _commandData = commandData;
@@ -140,9 +123,6 @@ public abstract class ManagedWorkflow<Dto, TResult>: ISubworkflow<Dto, TResult> 
 
         SetActions();
 
-        bool isEntirelyTransactionless = _actions.All(a => a.transactionManagementOption == TransactionManagementOptions.TransactionlessAction);
-
-        //using (TransactionGroup? transGroup = isEntirelyTransactionless ? null : new TransactionGroup(_doc, _workflowName))
         using (TransactionGroup? transGroup = new TransactionGroup(_doc, _workflowName))
         {
             try
@@ -172,9 +152,12 @@ public abstract class ManagedWorkflow<Dto, TResult>: ISubworkflow<Dto, TResult> 
         }
     }
 
-    protected abstract void SetCriticalVariables();
 
+
+    protected abstract void SetCriticalVariables();
     protected abstract void SetActions();
+
+
 
     protected void ExecuteCorrespondingWorkflowTransactionApproach()
     {
@@ -187,7 +170,6 @@ public abstract class ManagedWorkflow<Dto, TResult>: ISubworkflow<Dto, TResult> 
         else if (isTransactionlessWorkflow) TransactionlessWorkflow();
         else SingleTransactionWorkflow();
     }
-
     private void ParticularizedTransactionsWorkflow()
     {
         for (int i = 0; i < _actions.Count; i++)
@@ -225,7 +207,6 @@ public abstract class ManagedWorkflow<Dto, TResult>: ISubworkflow<Dto, TResult> 
             }
         }
     }
-
     private void TransactionlessWorkflow()
     {
         for (int i = 0; i < _actions.Count; i++)
@@ -234,7 +215,6 @@ public abstract class ManagedWorkflow<Dto, TResult>: ISubworkflow<Dto, TResult> 
             ManageAction(action.action, action.mustLogAction, i + 1);
         }
     }
-
     private void SingleTransactionWorkflow()
     {
         using (Transaction t = new Transaction(_doc, this.GetType().Name))
@@ -260,11 +240,11 @@ public abstract class ManagedWorkflow<Dto, TResult>: ISubworkflow<Dto, TResult> 
         }
     }
 
+
+
     private void ManageAction(Action<List<string>> action, bool mustReportTelemetry, int actionNumber)
     {
-        ////////////////
-        // Prepare Command Action telemetry
-        ////////////////
+        _executedActionCounter++;
 
         var observableAction = new WorkflowObservableAction
         {
@@ -276,18 +256,10 @@ public abstract class ManagedWorkflow<Dto, TResult>: ISubworkflow<Dto, TResult> 
 
         try
         {
-            ////////////////
-            // Run Command Action
-            ////////////////
-
             action.Invoke(telemetryCollector);
         }
         catch (Exception ex)
         {
-            ////////////////
-            // Handle Comnnad Action failure
-            //////////////// 
-
             var failure = new WorkflowObservableDataFailure
             {
                 Message = ex.Message,
@@ -303,10 +275,6 @@ public abstract class ManagedWorkflow<Dto, TResult>: ISubworkflow<Dto, TResult> 
         }
         finally
         {
-            ////////////////
-            // Collect Command Action telemetry
-            //////////////// 
-
             if (mustReportTelemetry) observableAction.Telemetry = telemetryCollector;
 
             _workflowObservableData!.ActionsNames.Add(observableAction.Name);
@@ -315,7 +283,7 @@ public abstract class ManagedWorkflow<Dto, TResult>: ISubworkflow<Dto, TResult> 
         }
     }
 
-    protected void RecordData()
+    protected void RecordData(int executedActionCounter = 0)
     {
         ////////////////
         // Convert workflow data to observable object
@@ -346,6 +314,6 @@ public abstract class ManagedWorkflow<Dto, TResult>: ISubworkflow<Dto, TResult> 
         // Write telemetry to file System
         ////////////////
 
-        _fileSystemManager?.WriteTelemetryFile(serializedData);
+        _fileSystemManager?.WriteTelemetryFile(serializedData, executedActionCounter);
     }
 }

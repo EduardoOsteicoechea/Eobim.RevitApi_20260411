@@ -68,7 +68,7 @@ MultistepObservableAction<LineList_GenerateCurveLoopsFromLinesDto, List<List<Lin
     public void GenerateCurveLoopsFromOrderedOffsetLines(List<string> telemetry)
     {
         var result = new List<List<Line>>();
-        var displacement = _dto.ContourThickness;
+        var displacement = _dto.ContourThickness / 2;
 
         foreach (var line in _dto.InputLines)
         {

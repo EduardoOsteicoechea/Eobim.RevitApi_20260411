@@ -1,347 +1,70 @@
-﻿using System.Globalization;
+﻿using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Runtime.ExceptionServices;
+using System.Security;
 using System.Text;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.DB.Architecture;
+using Autodesk.Revit.Exceptions; // Added for InvalidObjectException
 
 namespace Eobim.RevitApi.Framework;
 
 public static class TypeFormatter
 {
-	public static object ElementIdSolidTuple(List<(ElementId, Solid)> data)
-	{
-		if (data == null) return "[null]";
-
-		var printer = new StringBuilder();
-
-		printer.Append($"{data.Count}, ");
-		printer.Append($"[");
-
-		foreach ((ElementId, Solid) item in data)
-		{
-			printer.Append($"({ElementId(item.Item1)}, {Solid(item.Item2)}),");
-		}
-
-		printer.Append($"]");
-
-		return printer.ToString();
-	}
-
-	public static object ElementIdIDtoDictionary(Dictionary<ElementId, IDto> data)
-	{
-		if (data == null) return "[null]";
-
-		var printer = new StringBuilder();
-
-		printer.Append($"{data.Count}, ");
-		printer.Append($"[");
-
-		foreach (KeyValuePair<ElementId, IDto> item in data)
-		{
-			var properties = item.Value.ToObservableObject();
-			var formattedProps = string.Join(", ", properties.Select(p => $"{p.Item1}: {p.Item2}"));
-			printer.Append($"({ElementId(item.Key)}, [{formattedProps}]),");
-		}
-
-		printer.Append($"]");
-
-		return printer.ToString();
-	}
-
-	public static object IDto(IDto data)
-	{
-		if (data == null) return "[null]";
-
-		return data.ToObservableObject();
-	}
-	public static object IDtos(List<IDto> data)
-	{
-		if (data == null) return "[null]";
-
-		return data.Select(x => IDto(x)).ToList();
-	}
-
-	public static string BoundarySegmentListOfList(List<List<BoundarySegment>> data)
-	{
-		if (data == null) return "[null]";
-
-		var printer = new StringBuilder();
-
-		printer.Append($"[{data.Count}], ");
-		printer.Append($"[");
-
-		foreach (List<BoundarySegment> item in data)
-		{
-			printer.Append($"[{item.Count}], ");
-			printer.Append($"[");
-			foreach (BoundarySegment item1 in item)
-			{
-				printer.Append($"{BoundarySegment(item1)}, ");
-			}
-			printer.Append($"], ");
-		}
-
-		printer.Append($"]");
-
-		return printer.ToString();
-	}
-
-	public static string BoundarySegment(BoundarySegment data)
-	{
-		if (data == null) return "[null]";
-
-		return $"{data.ElementId.ToString()}";
-	}
-
-	public static string BoundarySegmentList(List<BoundarySegment> data)
-	{
-		if (data == null) return "[null]";
-
-		var printer = new StringBuilder();
-
-		printer.Append($"({data.Count}, ");
-		printer.Append($"(");
-
-		foreach (BoundarySegment item in data)
-		{
-			printer.Append($"{BoundarySegment(item)}, ");
-		}
-
-		printer.Append($")");
-		printer.Append($")");
-
-		return printer.ToString();
-	}
-
-	public static string ElementIdBoundarySegmentListDictionary(Dictionary<ElementId, List<BoundarySegment>> data)
-	{
-		if (data == null) return "[null]";
-
-		var printer = new StringBuilder();
-
-		printer.Append($"{data.Count}, ");
-		printer.Append($"(");
-
-		foreach (KeyValuePair<ElementId, List<BoundarySegment>> item in data)
-		{
-			printer.Append($"(");
-			printer.Append($"{ElementId(item.Key)}, ");
-			printer.Append($"{BoundarySegmentList(item.Value)}");
-			printer.Append($"), ");
-		}
-
-		printer.Append($")");
-
-		return printer.ToString();
-	}
-
-	public static string WallList(List<Wall> data)
-	{
-		if (data == null) return "[null]";
-
-		var printer = new StringBuilder();
-
-		printer.Append($"[");
-		printer.Append($"({data.Count}), ");
-		printer.Append($"(");
-
-		foreach (Wall item in data)
-		{
-			printer.Append($"{Wall(item)}, ");
-		}
-
-		printer.Append($")");
-		printer.Append($"]");
-
-		return printer.ToString();
-	}
-
-	public static string ElementIdWallListDictionary(Dictionary<ElementId, List<Wall>> data)
-	{
-		if (data == null) return "[null]";
-
-		var printer = new StringBuilder();
-
-		printer.Append($"{data.Count}, ");
-		printer.Append($"(");
-
-		foreach (KeyValuePair<ElementId, List<Wall>> item in data)
-		{
-			printer.Append($"(");
-			printer.Append($"{ElementId(item.Key)}, ");
-			printer.Append($"{WallList(item.Value)}");
-			printer.Append($"), ");
-		}
-
-		printer.Append($")");
-
-		return printer.ToString();
-	}
-
-	public static string ElementIdStringListDictionary(Dictionary<ElementId, List<string>> data)
-	{
-		if (data == null) return "[null]";
-
-		var printer = new StringBuilder();
-
-		printer.Append($"{data.Count}, ");
-		printer.Append($"(");
-
-		foreach (KeyValuePair<ElementId, List<string>> item in data)
-		{
-			printer.Append($"(");
-			printer.Append($"{ElementId(item.Key)}, ");
-			printer.Append($"(");
-			printer.Append($"{string.Join(", ", item.Value)}");
-			printer.Append($")");
-			printer.Append($"), ");
-		}
-
-		printer.Append($")");
-
-		return printer.ToString();
-	}
-
-	public static string ElementIdStringIEnumerableDictionary(Dictionary<ElementId, IEnumerable<string>> data)
-	{
-		if (data == null) return "[null]";
-
-		var printer = new StringBuilder();
-
-		printer.Append($"{data.Count}, ");
-		printer.Append($"(");
-
-		foreach (KeyValuePair<ElementId, IEnumerable<string>> item in data)
-		{
-			printer.Append($"(");
-			printer.Append($"{ElementId(item.Key)}, ");
-			printer.Append($"(");
-			printer.Append($"{string.Join(", ", item.Value)}");
-			printer.Append($")");
-			printer.Append($"), ");
-		}
-
-		printer.Append($")");
-
-		return printer.ToString();
-	}
-
-	public static string ElementIdReferenceListDictionary(Dictionary<ElementId, List<Reference>> data)
-	{
-		if (data == null) return "[null]";
-
-		var printer = new StringBuilder();
-
-		printer.Append($"{data.Count}, ");
-		printer.Append($"(");
-
-		foreach (KeyValuePair<ElementId, List<Reference>> item in data)
-		{
-			printer.Append($"(");
-			printer.Append($"{ElementId(item.Key)}, ");
-			printer.Append($"{ReferenceList(item.Value)}");
-			printer.Append($"), ");
-		}
-
-		printer.Append($")");
-
-		return printer.ToString();
-	}
-
-	public static string ReferenceList(List<Reference> data)
-	{
-		if (data == null) return "[null]";
-
-		var printer = new StringBuilder();
-
-		printer.Append($"{data.Count}, ");
-		printer.Append($"(");
-
-		foreach (Reference item in data)
-		{
-			printer.Append($"{Reference(item)}, ");
-		}
-
-		printer.Append($")");
-
-		return printer.ToString();
-	}
-
-	public static string Reference(Reference data)
-	{
-		if (data == null) return "[null]";
-		return $"{data.ElementId}";
-	}
-
-	public static string ReferencePlanes(List<ReferencePlane> data)
-	{
-		if (data == null) return "[null]";
-
-		var printer = new StringBuilder();
-
-		printer.Append($"[");
-
-		foreach (ReferencePlane item in data)
-		{
-			printer.Append($"({ReferencePlane(item)}), ");
-		}
-
-		printer.Append($"]");
-
-		return printer.ToString();
-	}
-
-	public static string ReferencePlane(ReferencePlane data)
-	{
-		if (data == null) return "[null]";
-
-		return $"{data.Id.ToString()}: {data.Name}";
-	}
-
-	public static string CurveList(List<Curve> data)
-	{
-		if (data == null) return "[null]";
-
-		var printer = new StringBuilder();
-
-		printer.Append($"[");
-
-		foreach (Curve item in data)
-		{
-			printer.Append($"({Curve(item)}), ");
-		}
-
-		printer.Append($"]");
-
-		return printer.ToString();
-	}
-
-	public static string Curve(Curve data)
-	{
-		if (data == null) return "[null]";
-
-		return $"{data.ApproximateLength}";
+    // ==========================================
+    // SAFTEY SHIELDS
+    // ==========================================
+
+    // Shield for standard Elements (Walls, Floors, Families, etc.)
+    private static string SafeElement<T>(T item, Func<T, string> readFunc) where T : Element
+    {
+        if (item == null) return "[null]";
+        if (!item.IsValidObject) return $"[Invalid/Rolled Back {item.GetType().Name}]";
+        return readFunc(item);
     }
 
-    public static string CurveRich(Curve data)
+    // Shield for Unmanaged Geometry / Wrappers (Face, Solid, Line, etc.)
+    [HandleProcessCorruptedStateExceptions]
+    [SecurityCritical]
+    private static string SafeReadGeometry<T>(T data, Func<T, string> readFunc, string objectName)
     {
         if (data == null) return "[null]";
-
-        return $"(Is Line:{data is Line} | {nameof(data.ApproximateLength)}: {data.ApproximateLength} | GetEndPoint(0): {data.GetEndPoint(0)} | GetEndPoint(1): {data.GetEndPoint(1)})";
+        try
+        {
+            return readFunc(data);
+        }
+        catch (InvalidObjectException)
+        {
+            return $"[Invalid/Rolled Back {objectName}]";
+        }
+        catch (AccessViolationException)
+        {
+            return $"[Dead C++ {objectName} Pointer]";
+        }
+        catch (Exception ex)
+        {
+            return $"[Error reading {objectName}: {ex.Message}]";
+        }
     }
 
-    public static string CurveLoop(CurveLoop data)
+    // ==========================================
+    // FORMATTERS
+    // ==========================================
+
+    public static object ElementIdSolidTuple(List<(ElementId, Solid)> data)
     {
         if (data == null) return "[null]";
-
-		var lines = data.ToList();
 
         var printer = new StringBuilder();
 
-        printer.Append($"({lines.Count} | {nameof(data.IsOpen)}: {data.IsOpen()} | {nameof(data.IsCounterclockwise)}: {data.IsCounterclockwise(Autodesk.Revit.DB.XYZ.BasisZ)} | [");
+        printer.Append($"{data.Count}, ");
+        printer.Append($"[");
 
-        foreach (Curve item in lines)
+        foreach ((ElementId, Solid) item in data)
         {
-            printer.Append($"{CurveRich(item)}, ");
+            printer.Append($"({ElementId(item.Item1)}, {Solid(item.Item2)}),");
         }
 
         printer.Append($"]");
@@ -349,22 +72,334 @@ public static class TypeFormatter
         return printer.ToString();
     }
 
+    public static object ElementIdIDtoDictionary(Dictionary<ElementId, IDto> data)
+    {
+        if (data == null) return "[null]";
+
+        var printer = new StringBuilder();
+
+        printer.Append($"{data.Count}, ");
+        printer.Append($"[");
+
+        foreach (KeyValuePair<ElementId, IDto> item in data)
+        {
+            var properties = item.Value.ToObservableObject();
+            var formattedProps = string.Join(", ", properties.Select(p => $"{p.Item1}: {p.Item2}"));
+            printer.Append($"({ElementId(item.Key)}, [{formattedProps}]),");
+        }
+
+        printer.Append($"]");
+
+        return printer.ToString();
+    }
+
+    public static object IDto(IDto data)
+    {
+        if (data == null) return "[null]";
+
+        return data.ToObservableObject();
+    }
+    public static object IDtos(List<IDto> data)
+    {
+        if (data == null) return "[null]";
+
+        return data.Select(x => IDto(x)).ToList();
+    }
+
+    public static string BoundarySegmentListOfList(List<List<BoundarySegment>> data)
+    {
+        if (data == null) return "[null]";
+
+        var printer = new StringBuilder();
+
+        printer.Append($"[{data.Count}], ");
+        printer.Append($"[");
+
+        foreach (List<BoundarySegment> item in data)
+        {
+            printer.Append($"[{item.Count}], ");
+            printer.Append($"[");
+            foreach (BoundarySegment item1 in item)
+            {
+                printer.Append($"{BoundarySegment(item1)}, ");
+            }
+            printer.Append($"], ");
+        }
+
+        printer.Append($"]");
+
+        return printer.ToString();
+    }
+
+    public static string BoundarySegment(BoundarySegment data)
+    {
+        return SafeReadGeometry(data, d => $"{d.ElementId.ToString()}", "BoundarySegment");
+    }
+
+    public static string BoundarySegmentList(List<BoundarySegment> data)
+    {
+        if (data == null) return "[null]";
+
+        var printer = new StringBuilder();
+
+        printer.Append($"({data.Count}, ");
+        printer.Append($"(");
+
+        foreach (BoundarySegment item in data)
+        {
+            printer.Append($"{BoundarySegment(item)}, ");
+        }
+
+        printer.Append($")");
+        printer.Append($")");
+
+        return printer.ToString();
+    }
+
+    public static string ElementIdBoundarySegmentListDictionary(Dictionary<ElementId, List<BoundarySegment>> data)
+    {
+        if (data == null) return "[null]";
+
+        var printer = new StringBuilder();
+
+        printer.Append($"{data.Count}, ");
+        printer.Append($"(");
+
+        foreach (KeyValuePair<ElementId, List<BoundarySegment>> item in data)
+        {
+            printer.Append($"(");
+            printer.Append($"{ElementId(item.Key)}, ");
+            printer.Append($"{BoundarySegmentList(item.Value)}");
+            printer.Append($"), ");
+        }
+
+        printer.Append($")");
+
+        return printer.ToString();
+    }
+
+    public static string WallList(List<Wall> data)
+    {
+        if (data == null) return "[null]";
+
+        var printer = new StringBuilder();
+
+        printer.Append($"[");
+        printer.Append($"({data.Count}), ");
+        printer.Append($"(");
+
+        foreach (Wall item in data)
+        {
+            printer.Append($"{Wall(item)}, ");
+        }
+
+        printer.Append($")");
+        printer.Append($"]");
+
+        return printer.ToString();
+    }
+
+    public static string ElementIdWallListDictionary(Dictionary<ElementId, List<Wall>> data)
+    {
+        if (data == null) return "[null]";
+
+        var printer = new StringBuilder();
+
+        printer.Append($"{data.Count}, ");
+        printer.Append($"(");
+
+        foreach (KeyValuePair<ElementId, List<Wall>> item in data)
+        {
+            printer.Append($"(");
+            printer.Append($"{ElementId(item.Key)}, ");
+            printer.Append($"{WallList(item.Value)}");
+            printer.Append($"), ");
+        }
+
+        printer.Append($")");
+
+        return printer.ToString();
+    }
+
+    public static string ElementIdStringListDictionary(Dictionary<ElementId, List<string>> data)
+    {
+        if (data == null) return "[null]";
+
+        var printer = new StringBuilder();
+
+        printer.Append($"{data.Count}, ");
+        printer.Append($"(");
+
+        foreach (KeyValuePair<ElementId, List<string>> item in data)
+        {
+            printer.Append($"(");
+            printer.Append($"{ElementId(item.Key)}, ");
+            printer.Append($"(");
+            printer.Append($"{string.Join(", ", item.Value)}");
+            printer.Append($")");
+            printer.Append($"), ");
+        }
+
+        printer.Append($")");
+
+        return printer.ToString();
+    }
+
+    public static string ElementIdStringIEnumerableDictionary(Dictionary<ElementId, IEnumerable<string>> data)
+    {
+        if (data == null) return "[null]";
+
+        var printer = new StringBuilder();
+
+        printer.Append($"{data.Count}, ");
+        printer.Append($"(");
+
+        foreach (KeyValuePair<ElementId, IEnumerable<string>> item in data)
+        {
+            printer.Append($"(");
+            printer.Append($"{ElementId(item.Key)}, ");
+            printer.Append($"(");
+            printer.Append($"{string.Join(", ", item.Value)}");
+            printer.Append($")");
+            printer.Append($"), ");
+        }
+
+        printer.Append($")");
+
+        return printer.ToString();
+    }
+
+    public static string ElementIdReferenceListDictionary(Dictionary<ElementId, List<Reference>> data)
+    {
+        if (data == null) return "[null]";
+
+        var printer = new StringBuilder();
+
+        printer.Append($"{data.Count}, ");
+        printer.Append($"(");
+
+        foreach (KeyValuePair<ElementId, List<Reference>> item in data)
+        {
+            printer.Append($"(");
+            printer.Append($"{ElementId(item.Key)}, ");
+            printer.Append($"{ReferenceList(item.Value)}");
+            printer.Append($"), ");
+        }
+
+        printer.Append($")");
+
+        return printer.ToString();
+    }
+
+    public static string ReferenceList(List<Reference> data)
+    {
+        if (data == null) return "[null]";
+
+        var printer = new StringBuilder();
+
+        printer.Append($"{data.Count}, ");
+        printer.Append($"(");
+
+        foreach (Reference item in data)
+        {
+            printer.Append($"{Reference(item)}, ");
+        }
+
+        printer.Append($")");
+
+        return printer.ToString();
+    }
+
+    public static string Reference(Reference data)
+    {
+        return SafeReadGeometry(data, d => $"{d.ElementId}", "Reference");
+    }
+
+    public static string ReferencePlanes(List<ReferencePlane> data)
+    {
+        if (data == null) return "[null]";
+
+        var printer = new StringBuilder();
+
+        printer.Append($"[");
+
+        foreach (ReferencePlane item in data)
+        {
+            printer.Append($"({ReferencePlane(item)}), ");
+        }
+
+        printer.Append($"]");
+
+        return printer.ToString();
+    }
+
+    public static string ReferencePlane(ReferencePlane data)
+    {
+        return SafeElement(data, d => $"{d.Id.ToString()}: {d.Name}");
+    }
+
+    public static string CurveList(List<Curve> data)
+    {
+        if (data == null) return "[null]";
+
+        var printer = new StringBuilder();
+
+        printer.Append($"[");
+
+        foreach (Curve item in data)
+        {
+            printer.Append($"({Curve(item)}), ");
+        }
+
+        printer.Append($"]");
+
+        return printer.ToString();
+    }
+
+    public static string Curve(Curve data)
+    {
+        return SafeReadGeometry(data, d => $"{d.ApproximateLength}", "Curve");
+    }
+
+    public static string CurveRich(Curve data)
+    {
+        return SafeReadGeometry(data, d => $"(Is Line:{d is Line} | {nameof(d.ApproximateLength)}: {d.ApproximateLength} | GetEndPoint(0): {d.GetEndPoint(0)} | GetEndPoint(1): {d.GetEndPoint(1)})", "Curve");
+    }
+
+    public static string CurveLoop(CurveLoop data)
+    {
+        return SafeReadGeometry(data, d =>
+        {
+            var lines = d.ToList();
+            var printer = new StringBuilder();
+            printer.Append($"({lines.Count} | {nameof(d.IsOpen)}: {d.IsOpen()} | {nameof(d.IsCounterclockwise)}: {d.IsCounterclockwise(Autodesk.Revit.DB.XYZ.BasisZ)} | [");
+
+            foreach (Curve item in lines)
+            {
+                printer.Append($"{CurveRich(item)}, ");
+            }
+
+            printer.Append($"]");
+            return printer.ToString();
+        }, "CurveLoop");
+    }
+
     public static string LineList(List<Line> data)
-	{
-		if (data == null) return "[null]";
+    {
+        if (data == null) return "[null]";
 
-		var printer = new StringBuilder();
+        var printer = new StringBuilder();
 
-		printer.Append($"[");
+        printer.Append($"[");
 
-		foreach (Line item in data)
-		{
-			printer.Append($"({Line(item)}), ");
-		}
+        foreach (Line item in data)
+        {
+            printer.Append($"({Line(item)}), ");
+        }
 
-		printer.Append($"]");
+        printer.Append($"]");
 
-		return printer.ToString();
+        return printer.ToString();
     }
 
     public static string LineListList(List<List<Line>> data)
@@ -386,1239 +421,1214 @@ public static class TypeFormatter
     }
 
     public static string Line(Line data)
-	{
-		if (data == null) return "[null]";
+    {
+        return SafeReadGeometry(data, d => $"{d.ApproximateLength}", "Line");
+    }
 
-		return $"{data.ApproximateLength}";
-	}
+    public static string Walls(List<Wall> data)
+    {
+        if (data == null) return "[null]";
 
-	public static string Walls(List<Wall> data)
-	{
-		if (data == null) return "[null]";
+        var printer = new StringBuilder();
 
-		var printer = new StringBuilder();
+        printer.Append($"[");
 
-		printer.Append($"[");
+        foreach (Wall item in data)
+        {
+            printer.Append($"({Wall(item)}), ");
+        }
 
-		foreach (Wall item in data)
-		{
-			printer.Append($"({Wall(item)}), ");
-		}
+        printer.Append($"]");
 
-		printer.Append($"]");
+        return printer.ToString();
+    }
 
-		return printer.ToString();
-	}
+    public static string Wall(Wall data)
+    {
+        return SafeElement(data, d => $"{d.Id.ToString()}: {d.Name}");
+    }
 
-	public static string Wall(Wall data)
-	{
-		if (data == null) return "[null]";
+    public static string FloorList(List<Floor> data)
+    {
+        if (data == null) return "[null]";
 
-		return $"{data.Id.ToString()}: {data.Name}";
-	}
+        var printer = new StringBuilder();
 
-	public static string FloorList(List<Floor> data)
-	{
-		if (data == null) return "[null]";
+        printer.Append($"({data.Count}, [");
 
-		var printer = new StringBuilder();
+        foreach (Floor item in data)
+        {
+            printer.Append($"{Floor(item)}, ");
+        }
 
-		printer.Append($"({data.Count}, [");
+        printer.Append($"]");
 
-		foreach (Floor item in data)
-		{
-			printer.Append($"{Floor(item)}, ");
-		}
+        return printer.ToString();
+    }
 
-		printer.Append($"]");
+    public static string Floor(Floor data)
+    {
+        return SafeElement(data, d => $"{d.Id.ToString()} | {d.Name}");
+    }
 
-		return printer.ToString();
-	}
+    public static string Levels(List<Level> data)
+    {
+        if (data == null) return "[null]";
 
-	public static string Floor(Floor data)
-	{
-		if (data == null) return "[null]";
+        var printer = new StringBuilder();
 
-		return $"{data.Id.ToString()} | {data.Name}";
-	}
+        printer.Append($"[");
 
-	public static string Levels(List<Level> data)
-	{
-		if (data == null) return "[null]";
+        foreach (Level item in data)
+        {
+            printer.Append($"({Level(item)}), ");
+        }
 
-		var printer = new StringBuilder();
+        printer.Append($"]");
 
-		printer.Append($"[");
+        return printer.ToString();
+    }
 
-		foreach (Level item in data)
-		{
-			printer.Append($"({Level(item)}), ");
-		}
+    public static string Level(Level data)
+    {
+        return SafeElement(data, d => $"{d.Id.ToString()} | {d.Name} | {d.Elevation}");
+    }
 
-		printer.Append($"]");
+    public static string Elements(List<Element> items)
+    {
+        if (items == null) return "[null]";
 
-		return printer.ToString();
-	}
+        var data = new StringBuilder();
 
-	public static string Level(Level data)
-	{
-		if (data == null) return "[null]";
+        data.Append($"[");
 
-		return $"{data.Id.ToString()} | {data.Name} | {data.Elevation}";
-	}
+        foreach (Element item in items)
+        {
+            data.Append($"{Element(item)}, ");
+        }
 
-	public static string Elements(List<Element> items)
-	{
-		if (items == null) return "[null]";
+        data.Append($"]");
 
-		var data = new StringBuilder();
+        return data.ToString();
+    }
 
-		data.Append($"[");
+    public static string BuiltInCategoryList(List<BuiltInCategory> items)
+    {
+        if (items == null) return "[null]";
 
-		foreach (Element item in items)
-		{
-			data.Append($"{item.Id.ToString()}, ");
-		}
+        var data = new StringBuilder();
 
-		data.Append($"]");
+        data.Append($"[");
 
-		return data.ToString();
-	}
+        foreach (BuiltInCategory item in items)
+        {
+            data.Append($"{BuiltInCategory(item)}, ");
+        }
 
-	public static string BuiltInCategoryList(List<BuiltInCategory> items)
-	{
-		if (items == null) return "[null]";
+        data.Append($"]");
 
-		var data = new StringBuilder();
+        return data.ToString();
+    }
 
-		data.Append($"[");
+    public static string BuiltInCategory(BuiltInCategory data)
+    {
+        // Enums are safe
+        return $"{data.ToString()}";
+    }
 
-		foreach (BuiltInCategory item in items)
-		{
-			data.Append($"{BuiltInCategory(item)}, ");
-		}
+    public static string ElementIdList(List<ElementId> items)
+    {
+        if (items == null) return "[null]";
 
-		data.Append($"]");
+        var data = new StringBuilder();
 
-		return data.ToString();
-	}
+        data.Append($"[");
 
-	public static string BuiltInCategory(BuiltInCategory data)
-	{
-		if (data == null) return "[null]";
+        foreach (ElementId item in items)
+        {
+            data.Append($"{ElementId(item)}, ");
+        }
 
-		return $"{data.ToString()}";
-	}
+        data.Append($"]");
 
-	public static string ElementIdList(List<ElementId> items)
-	{
-		if (items == null) return "[null]";
+        return data.ToString();
+    }
 
-		var data = new StringBuilder();
+    public static string Elements<T>(List<T> items) where T : Element
+    {
+        if (items == null) return "[null]";
 
-		data.Append($"[");
+        var data = new StringBuilder();
 
-		foreach (ElementId item in items)
-		{
-			data.Append($"{ElementId(item)}, ");
-		}
+        data.Append($"[");
 
-		data.Append($"]");
+        foreach (T item in items)
+        {
+            data.Append($"{Element(item)}, ");
+        }
 
-		return data.ToString();
-	}
+        data.Append($"]");
 
-	public static string Elements<T>(List<T> items) where T : Element
-	{
-		if (items == null) return "[null]";
+        return data.ToString();
+    }
 
-		var data = new StringBuilder();
+    public static string AreaScheme(AreaScheme item)
+    {
+        return SafeElement(item, d => $"{d.Id}: {d.Name}");
+    }
 
-		data.Append($"[");
+    public static string Area(Area item)
+    {
+        return SafeElement(item, d => $"{d.Id}: {d.Name}");
+    }
 
-		foreach (T item in items)
-		{
-			data.Append($"{item.Id.ToString()}, ");
-		}
+    public static string Areas(List<Area> data)
+    {
+        if (data == null) return "[null]";
 
-		data.Append($"]");
+        var printer = new StringBuilder();
 
-		return data.ToString();
-	}
+        printer.Append($"{data.Count}, ");
+        printer.Append($"[");
 
-	public static string AreaScheme(AreaScheme item)
-	{
-		if (item == null) return "[null]";
-		return $"{item.Id}: {item.Name}";
-	}
+        foreach (Area item in data)
+        {
+            printer.Append($"({Area(item)}), ");
+        }
 
-	public static string Area(Area item)
-	{
-		if (item == null) return "[null]";
-		return $"{item.Id}: {item.Name}";
-	}
+        printer.Append($"]");
 
-	public static string Areas(List<Area> data)
-	{
-		if (data == null) return "[null]";
+        return printer.ToString();
+    }
 
-		var printer = new StringBuilder();
+    public static string PropertyLine(PropertyLine item)
+    {
+        return SafeElement(item, d => $"{d.Id}: {d.Name}");
+    }
 
-		printer.Append($"{data.Count}, ");
-		printer.Append($"[");
+    public static string Room(Room item)
+    {
+        return SafeElement(item, d => $"{d.Id}: {d.Name}");
+    }
 
-		foreach (Area item in data)
-		{
-			printer.Append($"({Area(item)}), ");
-		}
+    public static string Rooms(List<Room> data)
+    {
+        if (data == null) return "[null]";
 
-		printer.Append($"]");
+        var printer = new StringBuilder();
 
-		return printer.ToString();
-	}
+        printer.Append($"{data.Count}, ");
+        printer.Append($"[");
 
-	public static string PropertyLine(PropertyLine item)
-	{
-		if (item == null) return "[null]";
-		return $"{item.Id}: {item.Name}";
-	}
+        foreach (Room item in data)
+        {
+            printer.Append($"({Room(item)}), ");
+        }
 
-	public static string Room(Room item)
-	{
-		if (item == null) return "[null]";
-		return $"{item.Id}: {item.Name}";
-	}
+        printer.Append($"]");
 
-	public static string Rooms(List<Room> data)
-	{
-		if (data == null) return "[null]";
+        return printer.ToString();
+    }
 
-		var printer = new StringBuilder();
+    public static string RoomsHashSet(HashSet<Room> data)
+    {
+        if (data == null) return "[null]";
 
-		printer.Append($"{data.Count}, ");
-		printer.Append($"[");
+        var printer = new StringBuilder();
 
-		foreach (Room item in data)
-		{
-			printer.Append($"({Room(item)}), ");
-		}
+        printer.Append($"{data.Count}, ");
+        printer.Append($"[");
 
-		printer.Append($"]");
+        foreach (Room item in data)
+        {
+            printer.Append($"({Room(item)}), ");
+        }
 
-		return printer.ToString();
-	}
+        printer.Append($"]");
 
-	public static string RoomsHashSet(HashSet<Room> data)
-	{
-		if (data == null) return "[null]";
+        return printer.ToString();
+    }
 
-		var printer = new StringBuilder();
+    public static string ElementList(List<Element> data)
+    {
+        if (data == null) return "[null]";
 
-		printer.Append($"{data.Count}, ");
-		printer.Append($"[");
+        var printer = new StringBuilder();
 
-		foreach (Room item in data)
-		{
-			printer.Append($"({Room(item)}), ");
-		}
+        printer.Append($"{data.Count}, ");
+        printer.Append($"(");
 
-		printer.Append($"]");
+        foreach (Element item in data)
+        {
+            printer.Append($"({Element(item)}),");
+        }
 
-		return printer.ToString();
-	}
+        printer.Append($")");
 
-	public static string ElementList(List<Element> data)
-	{
-		if (data == null) return "[null]";
+        return printer.ToString();
+    }
 
-		var printer = new StringBuilder();
+    public static string Solids(List<Solid> data)
+    {
+        if (data == null) return "[null]";
 
-		printer.Append($"{data.Count}, ");
-		printer.Append($"(");
+        var printer = new StringBuilder();
 
-		foreach (Element item in data)
-		{
-			printer.Append($"({Element(item)}),");
-		}
+        printer.Append($"{data.Count}, ");
+        printer.Append($"(");
 
-		printer.Append($")");
+        foreach (Solid item in data)
+        {
+            printer.Append($"({Solid(item)}),");
+        }
 
-		return printer.ToString();
-	}
+        printer.Append($")");
 
-	public static string Solids(List<Solid> data)
-	{
-		if (data == null) return "[null]";
+        return printer.ToString();
+    }
 
-		var printer = new StringBuilder();
+    public static string Solid(Solid item)
+    {
+        return SafeReadGeometry(item, d => $"{d.Volume}", "Solid");
+    }
 
-		printer.Append($"{data.Count}, ");
-		printer.Append($"(");
+    public static string StringSolidDictionary(Dictionary<string, Solid> data)
+    {
+        if (data == null) return "[null]";
 
-		foreach (Solid item in data)
-		{
-			printer.Append($"({Solid(item)}),");
-		}
+        var printer = new StringBuilder();
 
-		printer.Append($")");
+        printer.Append($"[");
+        printer.Append($"({data.Count}), ");
+        printer.Append($"(");
 
-		return printer.ToString();
-	}
+        foreach (KeyValuePair<string, Solid> item in data)
+        {
+            printer.Append($"{item.Key}");
+            printer.Append($"{Solid(item.Value)}");
+        }
 
-	public static string Solid(Solid item)
-	{
-		if (item == null) return "[null]";
-		return $"{item.Volume}";
-	}
+        printer.Append($")");
+        printer.Append($"]");
 
-	public static string StringSolidDictionary(Dictionary<string, Solid> data)
-	{
-		if (data == null) return "[null]";
+        return printer.ToString();
+    }
 
-		var printer = new StringBuilder();
+    public static string RoomSolidDictionary(Dictionary<Room, Solid> data)
+    {
+        if (data == null) return "[null]";
 
-		printer.Append($"[");
-		printer.Append($"({data.Count}), ");
-		printer.Append($"(");
+        var printer = new StringBuilder();
 
-		foreach (KeyValuePair<string, Solid> item in data)
-		{
-			printer.Append($"{item.Key}");
-			printer.Append($"{Solid(item.Value)}");
-		}
+        printer.Append($"[");
+        printer.Append($"({data.Count}), ");
+        printer.Append($"(");
 
-		printer.Append($")");
-		printer.Append($"]");
+        foreach (KeyValuePair<Room, Solid> item in data)
+        {
+            printer.Append($"{Room(item.Key)}");
+            printer.Append($": ");
+            printer.Append($"{Solid(item.Value)}");
+            printer.Append($", ");
+        }
 
-		return printer.ToString();
-	}
+        printer.Append($")");
+        printer.Append($"]");
 
-	public static string RoomSolidDictionary(Dictionary<Room, Solid> data)
-	{
-		if (data == null) return "[null]";
+        return printer.ToString();
+    }
 
-		var printer = new StringBuilder();
+    public static string StringLineDictionary(Dictionary<string, Line> data)
+    {
+        if (data == null) return "[null]";
 
-		printer.Append($"[");
-		printer.Append($"({data.Count}), ");
-		printer.Append($"(");
+        var printer = new StringBuilder();
 
-		foreach (KeyValuePair<Room, Solid> item in data)
-		{
-			printer.Append($"{Room(item.Key)}");
-			printer.Append($": ");
-			printer.Append($"{Solid(item.Value)}");
-			printer.Append($", ");
-		}
+        printer.Append($"{data.Count}, ");
+        printer.Append($"(");
 
-		printer.Append($")");
-		printer.Append($"]");
+        foreach (KeyValuePair<string, Line> item in data)
+        {
+            printer.Append($"{item.Key}, ");
+            printer.Append($"{Line(item.Value)}");
+        }
 
-		return printer.ToString();
-	}
+        printer.Append($")");
 
-	public static string StringLineDictionary(Dictionary<string, Line> data)
-	{
-		if (data == null) return "[null]";
+        return printer.ToString();
+    }
 
-		var printer = new StringBuilder();
+    public static string ElementId(ElementId item)
+    {
+        // ElementIds are safe value-types/structs
+        if (item == null) return "[null]";
+        return $"{item}";
+    }
 
-		printer.Append($"{data.Count}, ");
-		printer.Append($"(");
+    public static string Element(Element item)
+    {
+        return SafeElement(item, d => $"{d.Id}");
+    }
 
-		foreach (KeyValuePair<string, Line> item in data)
-		{
-			printer.Append($"{item.Key}, ");
-			printer.Append($"{Line(item.Value)}");
-		}
+    public static string ElementIdHashSet(HashSet<ElementId> data)
+    {
+        if (data == null) return "[null]";
 
-		printer.Append($")");
+        if (data.Count == 0) return "[empty]";
 
-		return printer.ToString();
-	}
+        return $"{data.Count}, [{string.Join(", ", data.Select(id => ElementId(id)))}]";
+    }
 
-	public static string ElementId(ElementId item)
-	{
-		if (item == null) return "[null]";
-		return $"{item}";
-	}
+    public static string ElementHashSet(HashSet<Element> items)
+    {
+        if (items == null) return "[null]";
+        if (items.Count == 0) return "[empty]";
 
-	public static string Element(Element item)
-	{
-		if (item == null) return "[null]";
-		return $"{item.Id}";
-	}
+        var data = items.Select(a => Element(a));
+        return $"[{string.Join(",", data)}]";
+    }
 
-	public static string ElementIdHashSet(HashSet<ElementId> data)
-	{
-		if (data == null) return "[null]";
+    public static string ElementIdElementIdDictionary(Dictionary<ElementId, ElementId> items)
+    {
+        if (items == null) return "[null]";
 
-		if (data.Count == 0) return "[empty]";
+        var data = new StringBuilder();
 
-		return $"{data.Count}, [{string.Join(", ", data.Select(id => ElementId(id)))}]";
-	}
+        data.AppendLine($"[");
 
-	public static string ElementHashSet(HashSet<Element> items)
-	{
-		if (items == null) return "[null]";
-		if (items.Count == 0) return "[empty]";
+        foreach (KeyValuePair<ElementId, ElementId> item in items)
+        {
+            data.Append($"({item.Key.ToString()}: {item.Value.ToString()}), ");
+        }
 
-		var data = items.Select(a => a.Id.ToString());
-		return $"[{string.Join(",", data)}]";
-	}
+        data.AppendLine($"");
+        data.Append($"]");
 
-	public static string ElementIdElementIdDictionary(Dictionary<ElementId, ElementId> items)
-	{
-		if (items == null) return "[null]";
+        return data.ToString();
+    }
 
-		var data = new StringBuilder();
+    public static string FaceElementIdDictionary(Dictionary<Face, ElementId> data)
+    {
+        if (data == null) return "[null]";
 
-		data.AppendLine($"[");
+        var printer = new StringBuilder();
 
-		foreach (KeyValuePair<ElementId, ElementId> item in items)
-		{
-			data.Append($"({item.Key.ToString()}: {item.Value.ToString()}), ");
-		}
+        printer.Append($"{data.Count}, ");
+        printer.Append($"(");
 
-		data.AppendLine($"");
-		data.Append($"]");
+        foreach (KeyValuePair<Face, ElementId> item in data)
+        {
+            printer.Append($"(");
+            printer.Append($"{Face(item.Key)}, ");
+            printer.Append($"{ElementId(item.Value)}");
+            printer.Append($"), ");
+        }
 
-		return data.ToString();
-	}
+        printer.Append($")");
 
-	public static string FaceElementIdDictionary(Dictionary<Face, ElementId> data)
-	{
-		if (data == null) return "[null]";
+        return printer.ToString();
+    }
 
-		var printer = new StringBuilder();
+    public static string FaceStringDictionary(Dictionary<Face, string> data)
+    {
+        if (data == null) return "[null]";
 
-		printer.Append($"{data.Count}, ");
-		printer.Append($"(");
+        var printer = new StringBuilder();
 
-		foreach (KeyValuePair<Face, ElementId> item in data)
-		{
-			printer.Append($"(");
-			printer.Append($"{item.Key.Area}, ");
-			printer.Append($"{item.Value.ToString()}");
-			printer.Append($"), ");
-		}
+        printer.Append($"{data.Count}, ");
+        printer.Append($"(");
 
-		printer.Append($")");
+        foreach (KeyValuePair<Face, string> item in data)
+        {
+            printer.Append($"(");
+            printer.Append($"{Face(item.Key)}, ");
+            printer.Append($"{item.Value}");
+            printer.Append($"), ");
+        }
 
-		return printer.ToString();
-	}
+        printer.Append($")");
 
-	public static string FaceStringDictionary(Dictionary<Face, string> data)
-	{
-		if (data == null) return "[null]";
+        return printer.ToString();
+    }
 
-		var printer = new StringBuilder();
+    public static string StringReferenceDictionary(Dictionary<string, Reference> data)
+    {
+        if (data == null) return "[null]";
 
-		printer.Append($"{data.Count}, ");
-		printer.Append($"(");
+        var printer = new StringBuilder();
 
-		foreach (KeyValuePair<Face, string> item in data)
-		{
-			printer.Append($"(");
-			printer.Append($"{item.Key.Area}, ");
-			printer.Append($"{item.Value}");
-			printer.Append($"), ");
-		}
+        printer.Append($"{data.Count}, ");
+        printer.Append($"(");
 
-		printer.Append($")");
+        foreach (KeyValuePair<string, Reference> item in data)
+        {
+            printer.Append($"(");
+            printer.Append($"{item.Key}, ");
+            printer.Append($"{Reference(item.Value)}");
+            printer.Append($"), ");
+        }
 
-		return printer.ToString();
-	}
+        printer.Append($")");
 
-	public static string StringReferenceDictionary(Dictionary<string, Reference> data)
-	{
-		if (data == null) return "[null]";
+        return printer.ToString();
+    }
 
-		var printer = new StringBuilder();
+    public static string ReferenceStringDictionary(Dictionary<Reference, string> data)
+    {
+        if (data == null) return "[null]";
 
-		printer.Append($"{data.Count}, ");
-		printer.Append($"(");
+        var printer = new StringBuilder();
 
-		foreach (KeyValuePair<string, Reference> item in data)
-		{
-			printer.Append($"(");
-			printer.Append($"{item.Key}, ");
-			printer.Append($"{item.Value.ElementId}");
-			printer.Append($"), ");
-		}
+        printer.Append($"{data.Count}, ");
+        printer.Append($"(");
 
-		printer.Append($")");
+        foreach (KeyValuePair<Reference, string> item in data)
+        {
+            printer.Append($"(");
+            printer.Append($"{Reference(item.Key)}, ");
+            printer.Append($"{item.Value}");
+            printer.Append($"), ");
+        }
 
-		return printer.ToString();
-	}
+        printer.Append($")");
 
-	public static string ReferenceStringDictionary(Dictionary<Reference, string> data)
-	{
-		if (data == null) return "[null]";
+        return printer.ToString();
+    }
 
-		var printer = new StringBuilder();
+    public static string ElementIdFaceListDictionary(Dictionary<ElementId, List<Face>> data)
+    {
+        if (data == null) return "[null]";
 
-		printer.Append($"{data.Count}, ");
-		printer.Append($"(");
+        var printer = new StringBuilder();
 
-		foreach (KeyValuePair<Reference, string> item in data)
-		{
-			printer.Append($"(");
-			printer.Append($"{item.Key.ElementId.ToString()}, ");
-			printer.Append($"{item.Value}");
-			printer.Append($"), ");
-		}
+        printer.Append($"{data.Count}, ");
+        printer.Append($"[");
 
-		printer.Append($")");
+        foreach (KeyValuePair<ElementId, List<Face>> item in data)
+        {
+            printer.Append($"{item.Key}, ");
+            printer.Append($"(");
+            printer.Append($"{FaceList(item.Value)}");
+            printer.Append($"), ");
+        }
 
-		return printer.ToString();
-	}
+        printer.Append($"]");
 
-	public static string ElementIdFaceListDictionary(Dictionary<ElementId, List<Face>> data)
-	{
-		if (data == null) return "[null]";
+        return printer.ToString();
+    }
 
-		var printer = new StringBuilder();
+    public static string FaceList(List<Face> data)
+    {
+        if (data == null) return "[null]";
 
-		printer.Append($"{data.Count}, ");
-		printer.Append($"[");
+        var printer = new StringBuilder();
 
-		foreach (KeyValuePair<ElementId, List<Face>> item in data)
-		{
-			printer.Append($"{item.Key}, ");
-			printer.Append($"(");
-			printer.Append($"{FaceList(item.Value)}");
-			printer.Append($"), ");
-		}
+        printer.Append($"{data.Count}, ");
+        printer.Append($"(");
 
-		printer.Append($"]");
+        foreach (Face item in data)
+        {
+            printer.Append($"{Face(item)},");
+        }
 
-		return printer.ToString();
-	}
+        printer.Append($")");
 
-	public static string FaceList(List<Face> data)
-	{
-		if (data == null) return "[null]";
+        return printer.ToString();
+    }
 
-		var printer = new StringBuilder();
+    public static string Face(Face data)
+    {
+        return SafeReadGeometry(data, d => $"{d.Id}, {d.Area}", "Face");
+    }
 
-		printer.Append($"{data.Count}, ");
-		printer.Append($"(");
+    public static string ElementIdFaceDictionary(Dictionary<ElementId, Face> items)
+    {
+        if (items == null) return "[null]";
 
-		foreach (Face item in data)
-		{
-			printer.Append($"{Face(item)},");
-		}
+        var data = new StringBuilder();
 
-		printer.Append($")");
+        foreach (KeyValuePair<ElementId, Face> item in items)
+        {
+            data.Append($"\n{ElementId(item.Key)} | {Face(item.Value)}");
+        }
 
-		return printer.ToString();
-	}
+        return data.ToString();
+    }
 
-	public static string Face(Face data)
-	{
-		if (data == null) return "[null]";
-		return $"{data.Id}, {data.Area}";
-	}
+    public static string ElementIdReferenceDictionary(Dictionary<ElementId, Reference> items)
+    {
+        if (items == null) return "[null]";
 
-	public static string ElementIdFaceDictionary(Dictionary<ElementId, Face> items)
-	{
-		if (items == null) return "[null]";
+        var data = new StringBuilder();
 
-		var data = new StringBuilder();
+        foreach (KeyValuePair<ElementId, Reference> item in items)
+        {
+            data.Append($"\n{ElementId(item.Key)} | {Reference(item.Value)}");
+        }
 
-		foreach (KeyValuePair<ElementId, Face> item in items)
-		{
-			data.Append($"\n{item.Key.ToString()} | {item.Value.Area.ToString()}");
-		}
+        return data.ToString();
+    }
 
-		return data.ToString();
-	}
+    public static string ElementIdSolidDictionary(Dictionary<ElementId, Solid> items)
+    {
+        if (items == null) return "[null]";
 
-	public static string ElementIdReferenceDictionary(Dictionary<ElementId, Reference> items)
-	{
-		if (items == null) return "[null]";
+        var data = new StringBuilder();
 
-		var data = new StringBuilder();
+        data.Append($"[");
 
-		foreach (KeyValuePair<ElementId, Reference> item in items)
-		{
-			data.Append($"\n{item.Key.ToString()} | {item.Value.ElementId.ToString()}");
-		}
+        foreach (KeyValuePair<ElementId, Solid> item in items)
+        {
+            data.Append($"({ElementId(item.Key)}: {Solid(item.Value)}), ");
+        }
 
-		return data.ToString();
-	}
+        data.Append($"]");
 
-	public static string ElementIdSolidDictionary(Dictionary<ElementId, Solid> items)
-	{
-		if (items == null) return "[null]";
+        return data.ToString();
+    }
 
-		var data = new StringBuilder();
+    public static string ElementIdElementListDictionary(Dictionary<ElementId, List<Element>> data)
+    {
+        if (data == null) return "[null]";
 
-		data.Append($"[");
+        var printer = new StringBuilder();
 
-		foreach (KeyValuePair<ElementId, Solid> item in items)
-		{
-			data.Append($"({item.Key.ToString()}: {item.Value.Volume.ToString()}), ");
-		}
+        printer.Append($"{data.Count}, ");
+        printer.Append($"[");
 
-		data.Append($"]");
+        foreach (KeyValuePair<ElementId, List<Element>> item in data)
+        {
+            printer.Append($"(");
+            printer.Append($"{item.Key}, ");
+            printer.Append($"(");
 
-		return data.ToString();
-	}
+            foreach (Element element in item.Value)
+            {
+                printer.Append($"{Element(element)},");
+            }
 
-	public static string ElementIdElementListDictionary(Dictionary<ElementId, List<Element>> data)
-	{
-		if (data == null) return "[null]";
+            printer.Append($")");
+            printer.Append($"),");
+        }
 
-		var printer = new StringBuilder();
+        printer.Append($"]");
 
-		printer.Append($"{data.Count}, ");
-		printer.Append($"[");
+        return printer.ToString();
+    }
 
-		foreach (KeyValuePair<ElementId, List<Element>> item in data)
-		{
-			printer.Append($"(");
-			printer.Append($"{item.Key}, ");
-			printer.Append($"(");
+    public static string ElementIdElementIdHashSetDictionary(Dictionary<ElementId, HashSet<ElementId>> data)
+    {
+        if (data == null) return "[null]";
 
-			foreach (Element element in item.Value)
-			{
-				printer.Append($"{Element(element)},");
-			}
+        var printer = new StringBuilder();
 
-			printer.Append($")");
-			printer.Append($"),");
-		}
+        printer.Append($"{data.Count}, ");
+        printer.Append($"[");
 
-		printer.Append($"]");
+        foreach (KeyValuePair<ElementId, HashSet<ElementId>> item in data)
+        {
+            printer.Append($"(");
+            printer.Append($"{item.Key}, ");
+            printer.Append($"(");
 
-		return printer.ToString();
-	}
+            foreach (ElementId element in item.Value)
+            {
+                printer.Append($"{element},");
+            }
 
-	public static string ElementIdElementIdHashSetDictionary(Dictionary<ElementId, HashSet<ElementId>> data)
-	{
-		if (data == null) return "[null]";
+            printer.Append($")");
+            printer.Append($"),");
+        }
 
-		var printer = new StringBuilder();
+        printer.Append($"]");
 
-		printer.Append($"{data.Count}, ");
-		printer.Append($"[");
+        return printer.ToString();
+    }
 
-		foreach (KeyValuePair<ElementId, HashSet<ElementId>> item in data)
-		{
-			printer.Append($"(");
-			printer.Append($"{item.Key}, ");
-			printer.Append($"(");
+    public static string ElementIdElementIdListDictionary(Dictionary<ElementId, List<ElementId>> data)
+    {
+        if (data == null) return "[null]";
 
-			foreach (ElementId element in item.Value)
-			{
-				printer.Append($"{element},");
-			}
+        var printer = new StringBuilder();
 
-			printer.Append($")");
-			printer.Append($"),");
-		}
+        printer.Append($"{data.Count}, ");
+        printer.Append($"[");
 
-		printer.Append($"]");
+        foreach (KeyValuePair<ElementId, List<ElementId>> item in data)
+        {
+            printer.Append($"(");
+            printer.Append($"{item.Key}, ");
+            printer.Append($"(");
 
-		return printer.ToString();
-	}
+            foreach (ElementId element in item.Value)
+            {
+                printer.Append($"{element},");
+            }
 
-	public static string ElementIdElementIdListDictionary(Dictionary<ElementId, List<ElementId>> data)
-	{
-		if (data == null) return "[null]";
+            printer.Append($")");
+            printer.Append($"),");
+        }
 
-		var printer = new StringBuilder();
+        printer.Append($"]");
 
-		printer.Append($"{data.Count}, ");
-		printer.Append($"[");
+        return printer.ToString();
+    }
 
-		foreach (KeyValuePair<ElementId, List<ElementId>> item in data)
-		{
-			printer.Append($"(");
-			printer.Append($"{item.Key}, ");
-			printer.Append($"(");
+    public static string Family(Family item)
+    {
+        return SafeElement(item, d => $"{d.Id}");
+    }
 
-			foreach (ElementId element in item.Value)
-			{
-				printer.Append($"{element},");
-			}
+    public static string FamilySymbol(FamilySymbol item)
+    {
+        return SafeElement(item, d => $"{d.Id}");
+    }
 
-			printer.Append($")");
-			printer.Append($"),");
-		}
+    public static string FamilyInstance(FamilyInstance item)
+    {
+        return SafeElement(item, d => $"{d.Id}");
+    }
 
-		printer.Append($"]");
+    public static string FamilyInstanceList(List<FamilyInstance> data)
+    {
+        if (data == null) return "[null]";
 
-		return printer.ToString();
-	}
+        var printer = new StringBuilder();
 
-	public static string Family(Family item)
-	{
-		if (item == null) return "[null]";
-		return $"{item.Id}";
-	}
+        printer.Append($"{data.Count}, ");
+        printer.Append($"(");
 
-	public static string FamilySymbol(FamilySymbol item)
-	{
-		if (item == null) return "[null]";
-		return $"{item.Id}";
-	}
+        foreach (FamilyInstance item in data)
+        {
+            printer.Append($"{FamilyInstance(item)},");
+        }
 
-	public static string FamilyInstance(FamilyInstance item)
-	{
-		if (item == null) return "[null]";
-		return $"{item.Id}";
-	}
+        printer.Append($")");
 
-	public static string FamilyInstanceList(List<FamilyInstance> data)
-	{
-		if (data == null) return "[null]";
+        return printer.ToString();
+    }
 
-		var printer = new StringBuilder();
+    public static string ElementIdFamilyInstanceListDictionary(Dictionary<ElementId, List<FamilyInstance>> data)
+    {
+        if (data == null) return "[null]";
 
-		printer.Append($"{data.Count}, ");
-		printer.Append($"(");
+        var printer = new StringBuilder();
 
-		foreach (FamilyInstance item in data)
-		{
-			printer.Append($"{FamilyInstance(item)},");
-		}
+        printer.Append($"{data.Count}, ");
+        printer.Append($"[");
 
-		printer.Append($")");
+        foreach (KeyValuePair<ElementId, List<FamilyInstance>> item in data)
+        {
+            printer.Append($"(");
+            printer.Append($"{item.Key}, ");
+            printer.Append($"(");
 
-		return printer.ToString();
-	}
+            foreach (FamilyInstance element in item.Value)
+            {
+                printer.Append($"{FamilyInstance(element)},");
+            }
 
-	public static string ElementIdFamilyInstanceListDictionary(Dictionary<ElementId, List<FamilyInstance>> data)
-	{
-		if (data == null) return "[null]";
+            printer.Append($")");
+            printer.Append($"),");
+        }
 
-		var printer = new StringBuilder();
+        printer.Append($"]");
 
-		printer.Append($"{data.Count}, ");
-		printer.Append($"[");
+        return printer.ToString();
+    }
 
-		foreach (KeyValuePair<ElementId, List<FamilyInstance>> item in data)
-		{
-			printer.Append($"(");
-			printer.Append($"{item.Key}, ");
-			printer.Append($"(");
+    public static string ElementIdValueDictionary(Dictionary<ElementId, double> items)
+    {
+        if (items == null) return "[null]";
 
-			foreach (FamilyInstance element in item.Value)
-			{
-				printer.Append($"{FamilyInstance(element)},");
-			}
+        var data = new StringBuilder();
 
-			printer.Append($")");
-			printer.Append($"),");
-		}
+        foreach (KeyValuePair<ElementId, double> item in items)
+        {
+            data.Append($"\n{item.Key.ToString()}: {item.Value.ToString()}");
+        }
 
-		printer.Append($"]");
+        return data.ToString();
+    }
 
-		return printer.ToString();
-	}
+    public static string ElementIdValueListDictionary(Dictionary<ElementId, List<double>> items)
+    {
+        if (items == null) return "[null]";
 
-	public static string ElementIdValueDictionary(Dictionary<ElementId, double> items)
-	{
-		if (items == null) return "[null]";
+        var data = new StringBuilder();
 
-		var data = new StringBuilder();
+        foreach (KeyValuePair<ElementId, List<double>> item in items)
+        {
+            var data2 = new StringBuilder();
 
-		foreach (KeyValuePair<ElementId, double> item in items)
-		{
-			var data2 = new StringBuilder();
+            foreach (double element in item.Value)
+            {
+                data2.Append($"{element},");
+            }
 
-			data.Append($"\n{item.Key.ToString()}: {item.Value.ToString()}");
-		}
+            data.Append($"\n{item.Key.ToString()}: [{data2.ToString()}]");
+        }
 
-		return data.ToString();
-	}
+        return data.ToString();
+    }
 
-	public static string ElementIdValueListDictionary(Dictionary<ElementId, List<double>> items)
-	{
-		if (items == null) return "[null]";
+    public static string ElementIdErrorStringListDictionary(Dictionary<ElementId, List<string>> items)
+    {
+        if (items == null) return "[null]";
 
-		var data = new StringBuilder();
+        var data = new StringBuilder();
 
-		foreach (KeyValuePair<ElementId, List<double>> item in items)
-		{
-			var data2 = new StringBuilder();
+        foreach (KeyValuePair<ElementId, List<string>> item in items)
+        {
+            var data2 = new StringBuilder();
 
-			foreach (double element in item.Value)
-			{
-				data2.Append($"{element},");
-			}
+            foreach (string element in item.Value)
+            {
+                data2.Append($"{element},");
+            }
 
-			data.Append($"\n{item.Key.ToString()}: [{data2.ToString()}]");
-		}
+            data.Append($"\n{item.Key.ToString()}: [{data2.ToString()}]");
+        }
 
-		return data.ToString();
-	}
+        return data.ToString();
+    }
 
-	public static string ElementIdErrorStringListDictionary(Dictionary<ElementId, List<string>> items)
-	{
-		if (items == null) return "[null]";
+    public static string ElementIdSolidListDictionary(Dictionary<ElementId, List<Solid>> data)
+    {
+        if (data == null) return "[null]";
 
-		var data = new StringBuilder();
+        var printer = new StringBuilder();
 
-		foreach (KeyValuePair<ElementId, List<string>> item in items)
-		{
-			var data2 = new StringBuilder();
+        printer.Append($"{data.Count}, ");
+        printer.Append($"[");
 
-			foreach (string element in item.Value)
-			{
-				data2.Append($"{element},");
-			}
+        foreach (KeyValuePair<ElementId, List<Solid>> item in data)
+        {
+            printer.Append($"(ID: ");
+            printer.Append($"{ElementId(item.Key)}, ");
+            printer.Append($"ITEMS: (");
+            printer.Append($"{Solids(item.Value)}");
+            printer.Append($")");
+            printer.Append($"),");
+        }
 
-			data.Append($"\n{item.Key.ToString()}: [{data2.ToString()}]");
-		}
+        printer.Append($"]");
 
-		return data.ToString();
-	}
+        return printer.ToString();
+    }
 
-	public static string ElementIdSolidListDictionary(Dictionary<ElementId, List<Solid>> data)
-	{
-		if (data == null) return "[null]";
+    public static string ElementIdSolidListTuple(List<(ElementId, List<Solid>)> data)
+    {
+        if (data == null) return "[null]";
 
-		var printer = new StringBuilder();
+        var printer = new StringBuilder();
 
-		printer.Append($"{data.Count}, ");
-		printer.Append($"[");
+        printer.Append($"{data.Count}, ");
+        printer.Append($"[");
 
-		foreach (KeyValuePair<ElementId, List<Solid>> item in data)
-		{
-			printer.Append($"(ID: ");
-			printer.Append($"{ElementId(item.Key)}, ");
-			printer.Append($"ITEMS: (");
-			printer.Append($"{Solids(item.Value)}");
-			printer.Append($")");
-			printer.Append($"),");
-		}
+        foreach ((ElementId elementId, List<Solid> solidList) in data)
+        {
+            printer.Append($"(ID: ");
+            printer.Append($"{ElementId(elementId)}, ");
+            printer.Append($"ITEMS: (");
+            printer.Append($"{Solids(solidList)}");
+            printer.Append($")");
+            printer.Append($"),");
+        }
 
-		printer.Append($"]");
+        printer.Append($"]");
 
-		return printer.ToString();
-	}
+        return printer.ToString();
+    }
 
-	public static string ElementIdSolidListTuple(List<(ElementId, List<Solid>)> data)
-	{
-		if (data == null) return "[null]";
+    public static string ElementIdXYZListDictionary(Dictionary<ElementId, List<XYZ>> data)
+    {
+        if (data == null) return "[null]";
 
-		var printer = new StringBuilder();
+        var printer = new StringBuilder();
 
-		printer.Append($"{data.Count}, ");
-		printer.Append($"[");
+        printer.Append($"{data.Count}, ");
+        printer.Append($"[");
 
-		foreach ((ElementId elementId, List<Solid> solidList) in data)
-		{
-			printer.Append($"(ID: ");
-			printer.Append($"{ElementId(elementId)}, ");
-			printer.Append($"ITEMS: (");
-			printer.Append($"{Solids(solidList)}");
-			printer.Append($")");
-			printer.Append($"),");
-		}
+        foreach (KeyValuePair<ElementId, List<XYZ>> item in data)
+        {
+            printer.Append($"(");
+            printer.Append($"{ElementId(item.Key)}, ");
+            printer.Append($"(");
+            printer.Append($"{XYZList(item.Value)}");
+            printer.Append($"),");
+            printer.Append($"),");
+        }
 
-		printer.Append($"]");
+        printer.Append($"]");
 
-		return printer.ToString();
-	}
+        return printer.ToString();
+    }
 
-	public static string ElementIdXYZListDictionary(Dictionary<ElementId, List<XYZ>> data)
-	{
-		if (data == null) return "[null]";
+    public static string XYZList(List<XYZ> data)
+    {
+        if (data == null) return "[null]";
 
-		var printer = new StringBuilder();
+        var printer = new StringBuilder();
 
-		printer.Append($"{data.Count}, ");
-		printer.Append($"[");
+        printer.Append($"{data.Count}, ");
+        printer.Append($"(");
 
-		foreach (KeyValuePair<ElementId, List<XYZ>> item in data)
-		{
-			printer.Append($"(");
-			printer.Append($"{ElementId(item.Key)}, ");
-			printer.Append($"(");
-			printer.Append($"{XYZList(item.Value)}");
-			printer.Append($"),");
-			printer.Append($"),");
-		}
+        foreach (XYZ item in data)
+        {
+            printer.Append($"{XYZ(item)}, ");
+        }
 
-		printer.Append($"]");
+        printer.Append($")");
 
-		return printer.ToString();
-	}
+        return printer.ToString();
+    }
 
-	public static string XYZList(List<XYZ> data)
-	{
-		if (data == null) return "[null]";
+    public static string XYZ(XYZ data)
+    {
+        if (data == null) return "[null]";
 
-		var printer = new StringBuilder();
+        return $"{data.ToString()}";
+    }
 
-		printer.Append($"{data.Count}, ");
-		printer.Append($"(");
+    public static string ElementIdXYZDictionary(Dictionary<ElementId, XYZ> data)
+    {
+        if (data == null) return "[null]";
 
-		foreach (XYZ item in data)
-		{
-			printer.Append($"{XYZ(item)}, ");
-		}
+        var printer = new StringBuilder();
 
-		printer.Append($")");
+        printer.Append($"{data.Count}, ");
+        printer.Append($"[");
 
-		return printer.ToString();
-	}
+        foreach (KeyValuePair<ElementId, XYZ> item in data)
+        {
+            printer.Append($"({ElementId(item.Key)},{XYZ(item.Value)}),");
+        }
 
-	public static string XYZ(XYZ data)
-	{
-		if (data == null) return "[null]";
+        printer.Append($"]");
 
-		return $"{data.ToString()}";
-	}
+        return printer.ToString();
+    }
 
-	public static string ElementIdXYZDictionary(Dictionary<ElementId, XYZ> data)
-	{
-		if (data == null) return "[null]";
+    public static string ElementIdLineDictionary(Dictionary<ElementId, Line> data)
+    {
+        if (data == null) return "[null]";
 
-		var printer = new StringBuilder();
+        var printer = new StringBuilder();
 
-		printer.Append($"{data.Count}, ");
-		printer.Append($"[");
+        printer.Append($"{data.Count}, ");
+        printer.Append($"[");
 
-		foreach (KeyValuePair<ElementId, XYZ> item in data)
-		{
-			printer.Append($"({ElementId(item.Key)},{XYZ(item.Value)}),");
-		}
+        foreach (KeyValuePair<ElementId, Line> item in data)
+        {
+            printer.Append($"({ElementId(item.Key)},{Line(item.Value)}),");
+        }
 
-		printer.Append($"]");
+        printer.Append($"]");
 
-		return printer.ToString();
-	}
+        return printer.ToString();
+    }
 
-	public static string ElementIdLineDictionary(Dictionary<ElementId, Line> data)
-	{
-		if (data == null) return "[null]";
+    public static string ElementIdLineListDictionary(Dictionary<ElementId, List<Line>> data)
+    {
+        if (data == null) return "[null]";
 
-		var printer = new StringBuilder();
+        var printer = new StringBuilder();
 
-		printer.Append($"{data.Count}, ");
-		printer.Append($"[");
+        printer.Append($"[{data.Count}],");
+        printer.Append($"[");
 
-		foreach (KeyValuePair<ElementId, Line> item in data)
-		{
-			printer.Append($"({ElementId(item.Key)},{Line(item.Value)}),");
-		}
+        foreach (KeyValuePair<ElementId, List<Line>> item in data)
+        {
+            printer.Append($"({item.Key}: [");
 
-		printer.Append($"]");
+            foreach (Line item1 in item.Value)
+            {
+                printer.Append($"{Line(item1)}, ");
+            }
 
-		return printer.ToString();
-	}
+            printer.Append($"]), ");
+        }
 
-	public static string ElementIdLineListDictionary(Dictionary<ElementId, List<Line>> data)
-	{
-		if (data == null) return "[null]";
+        printer.Append($"]");
 
-		var printer = new StringBuilder();
+        return data.ToString();
+    }
 
-		printer.Append($"[{data.Count}],");
-		printer.Append($"[");
+    public static string ElementDoubleTuple(List<(Element, double)> data)
+    {
+        if (data == null) return "[null]";
 
-		foreach (KeyValuePair<ElementId, List<Line>> item in data)
-		{
-			printer.Append($"({item.Key}: [");
+        var printer = new StringBuilder();
 
-			foreach (Line item1 in item.Value)
-			{
-				printer.Append($"{item1.Length}, ");
-			}
+        printer.Append($"{data.Count}, ");
+        printer.Append($"(");
 
-			printer.Append($"]), ");
-		}
+        foreach ((Element, double) item in data)
+        {
+            printer.Append($"(");
+            printer.Append($"{Element(item.Item1)}, ");
+            printer.Append($"{item.Item2.ToString("F2", CultureInfo.InvariantCulture)}");
+            printer.Append($"), ");
+        }
 
-		printer.Append($"]");
+        printer.Append($")");
 
-		return data.ToString();
-	}
+        return printer.ToString();
+    }
 
-	public static string ElementDoubleTuple(List<(Element, double)> data)
-	{
-		if (data == null) return "[null]";
+    public static string ElementDoubleDictionary(Dictionary<Element, double> data)
+    {
+        if (data == null) return "[null]";
 
-		var printer = new StringBuilder();
+        var printer = new StringBuilder();
 
-		printer.Append($"{data.Count}, ");
-		printer.Append($"(");
+        printer.Append($"{data.Count}, ");
+        printer.Append($"(");
 
-		foreach ((Element, double) item in data)
-		{
-			printer.Append($"(");
-			printer.Append($"{Element(item.Item1)}, ");
-			printer.Append($"{item.Item2.ToString("F2", CultureInfo.InvariantCulture)}");
-			printer.Append($"), ");
-		}
+        foreach (KeyValuePair<Element, double> item in data)
+        {
+            printer.Append($"(");
+            printer.Append($"{Element(item.Key)}, ");
+            printer.Append($"{item.Value.ToString("F2", CultureInfo.InvariantCulture)}");
+            printer.Append($"), ");
+        }
 
-		printer.Append($")");
+        printer.Append($")");
 
-		return printer.ToString();
-	}
+        return printer.ToString();
+    }
 
-	public static string ElementDoubleDictionary(Dictionary<Element, double> data)
-	{
-		if (data == null) return "[null]";
+    public static string ElementIdDoubleDictionary(Dictionary<ElementId, double> data)
+    {
+        if (data == null) return "[null]";
 
-		var printer = new StringBuilder();
+        var printer = new StringBuilder();
 
-		printer.Append($"{data.Count}, ");
-		printer.Append($"(");
+        printer.Append($"{data.Count}, ");
+        printer.Append($"(");
 
-		foreach (KeyValuePair<Element, double> item in data)
-		{
-			printer.Append($"(");
-			printer.Append($"{Element(item.Key)}, ");
-			printer.Append($"{item.Value.ToString("F2", CultureInfo.InvariantCulture)}");
-			printer.Append($"), ");
-		}
+        foreach (KeyValuePair<ElementId, double> item in data)
+        {
+            printer.Append($"(");
+            printer.Append($"{item.Key.ToString()}, ");
+            printer.Append($"{item.Value.ToString("F2", CultureInfo.InvariantCulture)}");
+            printer.Append($"), ");
+        }
 
-		printer.Append($")");
+        printer.Append($")");
 
-		return printer.ToString();
-	}
+        return printer.ToString();
+    }
 
-	public static string ElementIdDoubleDictionary(Dictionary<ElementId, double> data)
-	{
-		if (data == null) return "[null]";
+    public static string ElementIdElementDictionary(Dictionary<ElementId, Element> items)
+    {
+        if (items == null) return "[null]";
 
-		var printer = new StringBuilder();
+        var data = new StringBuilder();
 
-		printer.Append($"{data.Count}, ");
-		printer.Append($"(");
+        foreach (KeyValuePair<ElementId, Element> item in items)
+        {
+            data.Append($"\n{ElementId(item.Key)} | {Element(item.Value)}");
+        }
 
-		foreach (KeyValuePair<ElementId, double> item in data)
-		{
-			printer.Append($"(");
-			printer.Append($"{item.Key.ToString()}, ");
-			printer.Append($"{item.Value.ToString("F2", CultureInfo.InvariantCulture)}");
-			printer.Append($"), ");
-		}
+        return data.ToString();
+    }
 
-		printer.Append($")");
+    public static string Long(long data)
+    {
+        return data.ToString();
+    }
 
-		return printer.ToString();
-	}
+    public static string LongWallDictionary(Dictionary<long, Wall> data)
+    {
+        if (data == null) return "[null]";
 
-	public static string ElementIdElementDictionary(Dictionary<ElementId, Element> items)
-	{
-		if (items == null) return "[null]";
+        var printer = new StringBuilder();
 
-		var data = new StringBuilder();
+        printer.Append($"{data.Count}, ");
+        printer.Append($"(");
 
-		foreach (KeyValuePair<ElementId, Element> item in items)
-		{
-			data.Append($"\n{item.Key.ToString()} | {item.Value.Id.ToString()}");
-		}
+        foreach (KeyValuePair<long, Wall> item in data)
+        {
+            printer.Append($"(");
+            printer.Append($"{item.Key}, ");
+            printer.Append($"{Wall(item.Value)}");
+            printer.Append($"), ");
+        }
 
-		return data.ToString();
-	}
+        printer.Append($")");
 
-	public static string Long(long data)
-	{
-		if (data == null) return "[null]";
+        return printer.ToString();
+    }
 
-		return data.ToString();
-	}
+    public static string LongFamilyInstanceDictionary(Dictionary<long, FamilyInstance> data)
+    {
+        if (data == null) return "[null]";
 
-	public static string LongWallDictionary(Dictionary<long, Wall> data)
-	{
-		if (data == null) return "[null]";
+        var printer = new StringBuilder();
 
-		var printer = new StringBuilder();
+        printer.Append($"{data.Count}, ");
+        printer.Append($"(");
 
-		printer.Append($"{data.Count}, ");
-		printer.Append($"(");
+        foreach (KeyValuePair<long, FamilyInstance> item in data)
+        {
+            printer.Append($"(");
+            printer.Append($"{item.Key}, ");
+            printer.Append($"{FamilyInstance(item.Value)}");
+            printer.Append($"), ");
+        }
 
-		foreach (KeyValuePair<long, Wall> item in data)
-		{
-			printer.Append($"(");
-			printer.Append($"{item.Key}, ");
-			printer.Append($"{Wall(item.Value)}");
-			printer.Append($"), ");
-		}
+        printer.Append($")");
 
-		printer.Append($")");
+        return printer.ToString();
+    }
 
-		return printer.ToString();
-	}
+    public static string LongBoundarySegmentDictionary(Dictionary<long, BoundarySegment> data)
+    {
+        if (data == null) return "[null]";
 
-	public static string LongFamilyInstanceDictionary(Dictionary<long, FamilyInstance> data)
-	{
-		if (data == null) return "[null]";
+        var printer = new StringBuilder();
 
-		var printer = new StringBuilder();
+        printer.Append($"{data.Count}, ");
+        printer.Append($"(");
 
-		printer.Append($"{data.Count}, ");
-		printer.Append($"(");
+        foreach (KeyValuePair<long, BoundarySegment> item in data)
+        {
+            printer.Append($"(");
+            printer.Append($"{item.Key}, ");
+            printer.Append($"{BoundarySegment(item.Value)}");
+            printer.Append($"), ");
+        }
 
-		foreach (KeyValuePair<long, FamilyInstance> item in data)
-		{
-			printer.Append($"(");
-			printer.Append($"{item.Key}, ");
-			printer.Append($"{FamilyInstance(item.Value)}");
-			printer.Append($"), ");
-		}
+        printer.Append($")");
 
-		printer.Append($")");
+        return printer.ToString();
+    }
 
-		return printer.ToString();
-	}
+    public static string LongBoundarySegmentListDictionary(Dictionary<long, List<BoundarySegment>> data)
+    {
+        if (data == null) return "[null]";
 
-	public static string LongBoundarySegmentDictionary(Dictionary<long, BoundarySegment> data)
-	{
-		if (data == null) return "[null]";
+        var printer = new StringBuilder();
 
-		var printer = new StringBuilder();
+        printer.Append($"{data.Count}, ");
+        printer.Append($"(");
 
-		printer.Append($"{data.Count}, ");
-		printer.Append($"(");
+        foreach (KeyValuePair<long, List<BoundarySegment>> item in data)
+        {
+            printer.Append($"(");
+            printer.Append($"{item.Key}, ");
+            printer.Append($"{BoundarySegmentList(item.Value)}");
+            printer.Append($"), ");
+        }
 
-		foreach (KeyValuePair<long, BoundarySegment> item in data)
-		{
-			printer.Append($"(");
-			printer.Append($"{item.Key}, ");
-			printer.Append($"{BoundarySegment(item.Value)}");
-			printer.Append($"), ");
-		}
+        printer.Append($")");
 
-		printer.Append($")");
+        return printer.ToString();
+    }
 
-		return printer.ToString();
-	}
+    public static string LongIDtoDictionary(Dictionary<long, IDto> data)
+    {
+        if (data == null) return "[null]";
 
-	public static string LongBoundarySegmentListDictionary(Dictionary<long, List<BoundarySegment>> data)
-	{
-		if (data == null) return "[null]";
+        var printer = new StringBuilder();
 
-		var printer = new StringBuilder();
+        printer.Append($"{data.Count}, ");
+        printer.Append($"(");
 
-		printer.Append($"{data.Count}, ");
-		printer.Append($"(");
+        foreach (KeyValuePair<long, IDto> item in data)
+        {
+            printer.Append($"(");
+            printer.Append($"{item.Key}, ");
+            printer.Append($"{IDto(item.Value)}");
+            printer.Append($"), ");
+        }
 
-		foreach (KeyValuePair<long, List<BoundarySegment>> item in data)
-		{
-			printer.Append($"(");
-			printer.Append($"{item.Key}, ");
-			printer.Append($"{BoundarySegmentList(item.Value)}");
-			printer.Append($"), ");
-		}
+        printer.Append($")");
 
-		printer.Append($")");
+        return printer.ToString();
+    }
 
-		return printer.ToString();
-	}
+    public static string ElementIdElementsDictionary(Dictionary<ElementId, List<Element>> items)
+    {
+        if (items == null) return "[null]";
 
-	public static string LongIDtoDictionary(Dictionary<long, IDto> data)
-	{
-		if (data == null) return "[null]";
+        var data = new StringBuilder();
 
-		var printer = new StringBuilder();
+        data.Append($"[{items.Count}], ");
+        data.Append($"[");
 
-		printer.Append($"{data.Count}, ");
-		printer.Append($"(");
+        foreach (KeyValuePair<ElementId, List<Element>> item in items)
+        {
+            var data2 = new StringBuilder();
 
-		foreach (KeyValuePair<long, IDto> item in data)
-		{
-			printer.Append($"(");
-			printer.Append($"{item.Key}, ");
-			printer.Append($"{IDto(item.Value)}");
-			printer.Append($"), ");
-		}
+            foreach (Element element in item.Value)
+            {
+                data2.Append($"{Element(element)}, ");
+            }
 
-		printer.Append($")");
+            data.Append($"({item.Key.ToString()}: [{item.Value.Count}], [{data2.ToString()}]), ");
+        }
 
-		return printer.ToString();
-	}
+        data.Append($"]");
 
-	public static string ElementIdElementsDictionary(Dictionary<ElementId, List<Element>> items)
-	{
-		if (items == null) return "[null]";
+        return data.ToString();
+    }
 
-		var data = new StringBuilder();
+    public static string Plane(Plane data)
+    {
+        return SafeReadGeometry(data, d => $"{d.Origin.ToString()}", "Plane");
+    }
+    public static string Double(double data)
+    {
+        return $"{data.ToString("F2", CultureInfo.InvariantCulture)}";
+    }
+    public static string Integer(int data)
+    {
+        return $"{data.ToString()}";
+    }
+    public static string Boolean(bool data)
+    {
+        return $"{data.ToString()}";
+    }
+    public static string String(string data)
+    {
+        if (data == null) return "[null]";
 
-		data.Append($"[{items.Count}], ");
-		data.Append($"[");
+        return $"{data}";
+    }
 
-		foreach (KeyValuePair<ElementId, List<Element>> item in items)
-		{
-			var data2 = new StringBuilder();
+    public static string Object(object data)
+    {
+        if (data == null) return "[null]";
 
-			foreach (Element element in item.Value)
-			{
-				data2.Append($"{element.Id.ToString()}, ");
-			}
+        return $"{data}";
+    }
+    public static string Outline(Outline data)
+    {
+        return SafeReadGeometry(data, d => $"{d.MinimumPoint.ToString()} - {d.MaximumPoint.ToString()}", "Outline");
+    }
 
-			data.Append($"({item.Key.ToString()}: [{item.Value.Count}], [{data2.ToString()}]), ");
-		}
+    public static string ElementIdStringDictionary(Dictionary<ElementId, string> data)
+    {
+        if (data == null) return "[null]";
 
-		data.Append($"]");
+        var printer = new StringBuilder();
 
-		return data.ToString();
-	}
+        printer.Append($"{data.Count}, ");
+        printer.Append($"(");
 
-	public static string Plane(Plane data)
-	{
-		return $"{data.Origin.ToString()}";
-	}
-	public static string Double(double data)
-	{
-		return $"{data.ToString("F2", CultureInfo.InvariantCulture)}";
-	}
-	public static string Integer(int data)
-	{
-		return $"{data.ToString()}";
-	}
-	public static string Boolean(bool data)
-	{
-		return $"{data.ToString()}";
-	}
-	public static string String(string data)
-	{
-		if (data == null) return "[null]";
+        foreach (KeyValuePair<ElementId, string> item in data)
+        {
+            printer.Append($"(");
+            printer.Append($"{ElementId(item.Key)}, ");
+            printer.Append($"{item.Value}");
+            printer.Append($"), ");
+        }
 
-		return $"{data}";
-	}
+        printer.Append($")");
 
-	public static string Object(object data)
-	{
-		if (data == null) return "[null]";
-
-		return $"{data}";
-	}
-	public static string Outline(Outline data)
-	{
-		if (data == null) return "[null]";
-
-		return $"{data.MinimumPoint.ToString()} - {data.MaximumPoint.ToString()}";
-	}
-
-	public static string ElementIdStringDictionary(Dictionary<ElementId, string> data)
-	{
-		if (data == null) return "[null]";
-
-		var printer = new StringBuilder();
-
-		printer.Append($"{data.Count}, ");
-		printer.Append($"(");
-
-		foreach (KeyValuePair<ElementId, string> item in data)
-		{
-			printer.Append($"(");
-			printer.Append($"{ElementId(item.Key)}, ");
-			printer.Append($"{item.Value}");
-			printer.Append($"), ");
-		}
-
-		printer.Append($")");
-
-		return printer.ToString();
-	}
+        return printer.ToString();
+    }
 }
-

@@ -65,6 +65,7 @@ public abstract class ManagedWorkflow<Dto, TResult> : ISubworkflow<Dto, TResult>
     protected FileSystemManager? _fileSystemManager;
     protected WorkflowObservableData? _workflowObservableData;
     protected Dto _dto = new();
+    protected bool _isRolledBack = false;
     public TResult Result { get; set; }
     public int _executedActionCounter { get; set; } = 0;
 
@@ -139,7 +140,8 @@ public abstract class ManagedWorkflow<Dto, TResult> : ISubworkflow<Dto, TResult>
             {
                 if (transGroup.HasStarted() == true)
                 {
-                    transGroup.RollBack();
+                    transGroup.RollBack(); 
+                    _isRolledBack = true;
                 }
 
                 message = ex.Message;
@@ -289,7 +291,18 @@ public abstract class ManagedWorkflow<Dto, TResult> : ISubworkflow<Dto, TResult>
         // Convert workflow data to observable object
         //////////////// 
 
-        var convertedData = _dto.ToObservableObject();
+        object convertedData;
+
+        if (_isRolledBack)
+        {
+            // FATAL SHIELD: Do NOT touch the DTO. The geometry pointers are dead!
+            convertedData = "[Serialization Skipped: Transaction Rolled Back. DTO contains dead C++ pointers.]";
+        }
+        else
+        {
+            // Safe to read
+            convertedData = _dto.ToObservableObject();
+        }
 
         ////////////////
         // Append workflow data to telemetry collector

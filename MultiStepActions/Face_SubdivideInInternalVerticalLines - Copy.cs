@@ -1,0 +1,525 @@
+﻿//using System;
+//using System.Collections.Generic;
+//using System.Linq;
+//using Autodesk.Revit.DB;
+//using Eobim.RevitApi.Framework;
+
+//namespace Eobim.RevitApi.MultiStepActions
+//{
+//    public class Face_SubdivideInInternalLines(Document doc, string workflowName)
+//        : MultistepObservableAction<Face_SubdivideInInternalLinesDto, List<Line>>(doc, workflowName)
+//    {
+//        // ------------------------------------------------------------------------
+//        // HELPER METHODS FOR A/B ABSTRACTION
+//        // ------------------------------------------------------------------------
+//        private double GetA(XYZ p) => _dto.SubdivisionBasis == SubdivisionAxis.X ? p.X : p.Y;
+//        private double GetB(XYZ p) => _dto.SubdivisionBasis == SubdivisionAxis.X ? p.Y : p.X;
+
+//        private XYZ CreateXYZ(double a, double b, double z) =>
+//            _dto.SubdivisionBasis == SubdivisionAxis.X ? new XYZ(a, b, z) : new XYZ(b, a, z);
+
+//        public override void SafelyInitializeInputs(object[] args)
+//        {
+//            if (args == null || args.Length < 3)
+//                throw new ArgumentException("Insufficient arguments provided.");
+
+//            _dto.FaceToSubdivide = args[0] as Face ?? throw new ArgumentException("First argument must be a valid Revit Face.");
+//            _dto.SubdivisionSeparation = (double)args[1];
+
+//            // Assuming the 3rd argument is castable to our new Enum (or passed as a 0.0 / 1.0 double)
+//            if (args[2] is SubdivisionAxis axis)
+//            {
+//                _dto.SubdivisionBasis = axis;
+//            }
+//            else if (args[2] is double basisDouble)
+//            {
+//                _dto.SubdivisionBasis = basisDouble == 0 ? SubdivisionAxis.X : SubdivisionAxis.Y;
+//            }
+//        }
+
+//        protected override void SetActions()
+//        {
+//            Add(GetFaceExternalBoundaryLines);
+//            Add(GenerateEnclosingOrthogonalRectangle);
+//            Add(SubdivideBoundaryLine);
+//            Add(GenerateFullLines);
+//            Add(IntersectLinesWithFaceBoundaryLines);
+//            Add(FilterFaceOuterBoundaryInternalSegments);
+//            Add(SetResult);
+//        }
+
+//        public void GetFaceExternalBoundaryLines(List<string> _telemetry)
+//        {
+//            var curveLoops = _dto.FaceToSubdivide.GetEdgesAsCurveLoops();
+//            var externalCurveLoop = curveLoops.FirstOrDefault(loop => loop.IsCounterclockwise(XYZ.BasisZ));
+
+//            if (externalCurveLoop == null)
+//            {
+//                _telemetry?.Add("Failed to find a counterclockwise curve loop.");
+//                throw new InvalidOperationException("No counterclockwise curve loop found on the given face.");
+//            }
+
+//            var boundaryCurves = externalCurveLoop.ToList();
+
+//            if (!boundaryCurves.Any())
+//            {
+//                throw new InvalidOperationException("The external curve loop was found but contains no curves.");
+//            }
+
+//            _dto.FaceBoundaryCurves = boundaryCurves;
+//        }
+
+//        public void GenerateEnclosingOrthogonalRectangle(List<string> _telemetry)
+//        {
+//            double minA = double.MaxValue;
+//            double maxA = double.MinValue;
+//            double minB = double.MaxValue;
+//            double maxB = double.MinValue;
+
+//            foreach (var curve in _dto.FaceBoundaryCurves)
+//            {
+//                for (int i = 0; i <= 1; i++)
+//                {
+//                    var point = curve.GetEndPoint(i);
+
+//                    double a = GetA(point);
+//                    double b = GetB(point);
+
+//                    if (a < minA) minA = a;
+//                    if (a > maxA) maxA = a;
+//                    if (b < minB) minB = b;
+//                    if (b > maxB) maxB = b;
+//                }
+//            }
+
+//            _dto.MinA = minA;
+//            _dto.MaxA = maxA;
+//            _dto.MinB = minB;
+//            _dto.MaxB = maxB;
+
+//            _dto.ZLevel = _dto.FaceBoundaryCurves.First().GetEndPoint(0).Z;
+//        }
+
+//        public void SubdivideBoundaryLine(List<string> _telemetry)
+//        {
+//            if (_dto.SubdivisionSeparation <= 0)
+//            {
+//                _telemetry?.Add("SubdivisionSeparation is zero or negative. Cannot subdivide.");
+//                throw new InvalidOperationException("Subdivision separation must be greater than zero.");
+//            }
+
+//            var result = new List<XYZ>();
+//            double currentA = _dto.MinA + _dto.SubdivisionSeparation;
+
+//            while (currentA < _dto.MaxA)
+//            {
+//                // We use MaxB as the starting boundary, just like your TopLine method did
+//                result.Add(CreateXYZ(currentA, _dto.MaxB, _dto.ZLevel));
+//                currentA += _dto.SubdivisionSeparation;
+//            }
+
+//            _dto.SubdivisionStartPoints = result;
+//        }
+
+//        public void GenerateFullLines(List<string> _telemetry)
+//        {
+//            var result = new List<Line>();
+//            double revitMinimumLineLength = 0.001;
+
+//            foreach (var item in _dto.SubdivisionStartPoints)
+//            {
+//                double currentA = GetA(item);
+//                var endPoint = CreateXYZ(currentA, _dto.MinB, _dto.ZLevel);
+
+//                if (item.DistanceTo(endPoint) > revitMinimumLineLength)
+//                {
+//                    result.Add(Line.CreateBound(item, endPoint));
+//                }
+//                else
+//                {
+//                    _telemetry?.Add($"Skipped line at A-coordinate {currentA} - distance too short for Revit API.");
+//                }
+//            }
+
+//            _dto.FullLines = result;
+//        }
+
+//        public void IntersectLinesWithFaceBoundaryLines(List<string> _telemetry)
+//        {
+//            if (_dto.FullLines == null || _dto.FaceBoundaryCurves == null)
+//            {
+//                _telemetry?.Add("Missing lines or boundary curves.");
+//                throw new InvalidOperationException("Cannot calculate intersections without required geometry.");
+//            }
+
+//            var intersectionsDict = new Dictionary<Line, List<XYZ>>();
+
+//            foreach (var line in _dto.FullLines)
+//            {
+//                var rawIntersectionPoints = new List<XYZ>();
+
+//                foreach (var boundaryCurve in _dto.FaceBoundaryCurves)
+//                {
+//                    var intersectResult = boundaryCurve.Intersect(line, CurveIntersectResultOption.Detailed);
+//                    var overlaps = intersectResult?.GetOverlaps();
+
+//                    if (overlaps != null)
+//                    {
+//                        foreach (var overlap in overlaps)
+//                        {
+//                            if (overlap.Point != null)
+//                            {
+//                                rawIntersectionPoints.Add(overlap.Point);
+//                            }
+//                        }
+//                    }
+//                }
+
+//                var uniqueIntersections = new List<XYZ>();
+//                foreach (var pt in rawIntersectionPoints)
+//                {
+//                    if (!uniqueIntersections.Any(u => u.IsAlmostEqualTo(pt)))
+//                    {
+//                        uniqueIntersections.Add(pt);
+//                    }
+//                }
+
+//                intersectionsDict.Add(line, uniqueIntersections);
+//            }
+
+//            _dto.LinesIntersections = intersectionsDict;
+//        }
+
+//        public void FilterFaceOuterBoundaryInternalSegments(List<string> _telemetry)
+//        {
+//            if (_dto.LinesIntersections == null)
+//            {
+//                _telemetry?.Add("Intersection dictionary is null.");
+//                throw new InvalidOperationException("Intersections must be calculated before filtering.");
+//            }
+
+//            var result = new List<Line>();
+//            double revitMinimumLineLength = 0.0016;
+
+//            foreach (var kvp in _dto.LinesIntersections)
+//            {
+//                var baseLine = kvp.Key;
+//                var intersectionPoints = kvp.Value;
+
+//                if (intersectionPoints.Count >= 2)
+//                {
+//                    // CRITICAL UPDATE: We now sort by Axis B dynamically! 
+//                    // This ensures we always "walk" the line correctly regardless of orientation.
+//                    var sortedPoints = intersectionPoints.OrderBy(p => GetB(p)).ToList();
+
+//                    for (int i = 0; i < sortedPoints.Count - 1; i += 2)
+//                    {
+//                        var start = sortedPoints[i];
+//                        var end = sortedPoints[i + 1];
+
+//                        if (start.DistanceTo(end) > revitMinimumLineLength)
+//                        {
+//                            result.Add(Line.CreateBound(start, end));
+//                        }
+//                        else
+//                        {
+//                            _telemetry?.Add($"Skipped internal segment at A-coord {GetA(start)} - distance too short.");
+//                        }
+//                    }
+//                }
+//                else if (intersectionPoints.Count == 1)
+//                {
+//                    _telemetry?.Add($"Line at A-coord {GetA(baseLine.GetEndPoint(0))} grazed the boundary (1 point) and was skipped.");
+//                }
+//            }
+
+//            _dto.SubdivisoryLines = result;
+//        }
+
+//        public void SetResult(List<string> _telemetry)
+//        {
+//            Result = _dto.SubdivisoryLines ?? new List<Line>();
+//        }
+//    }
+//}
+
+
+
+
+////using Autodesk.Revit.DB;
+////using Eobim.RevitApi.Framework;
+
+////namespace Eobim.RevitApi.MultiStepActions;
+
+////public class Face_SubdivideInInternalVerticalLines(Document doc, string workflowName)
+////    :
+////    MultistepObservableAction<Face_SubdivideInInternalVerticalLinesDto, List<Line>>(doc, workflowName)
+////{
+////    public override void SafelyInitializeInputs(object[] args)
+////    {
+////        _dto.FaceToSubdivide = args[0] as Face;
+////        _dto.SubdivisionSeparation = (double)args[1];
+////        _dto.SubdivisionBasis = (double)args[2];
+////    }
+
+////    protected override void SetActions()
+////    {
+////        Add(GetFaceExternalBoundaryLines);
+////        Add(GenerateEnclosingOrthogonalRectangle);
+////        Add(SubdivideTopBoundaryLine);
+////        Add(GenerateVerticalLines);
+////        Add(IntersectVerticalLinesWithFaceBoundaryLines);
+////        Add(FilterFaceOuterBoundaryInternalSegments);
+////        Add(SetResult);
+////    }
+
+////    public void GetFaceExternalBoundaryLines(List<string> _telemetry)
+////    {
+////        var curveLoops = _dto.FaceToSubdivide.GetEdgesAsCurveLoops();
+
+////        var externalCurveLoop = curveLoops.FirstOrDefault(loop => loop.IsCounterclockwise(XYZ.BasisZ));
+
+////        if (externalCurveLoop == null)
+////        {
+////            _telemetry?.Add("Failed to find a counterclockwise curve loop.");
+////            throw new InvalidOperationException("No counterclockwise curve loop found on the given face.");
+////        }
+
+////        var boundaryCurves = externalCurveLoop.ToList();
+
+////        if (!boundaryCurves.Any())
+////        {
+////            throw new InvalidOperationException("The external curve loop was found but contains no curves.");
+////        }
+
+////        _dto.FaceBoundaryCurves = boundaryCurves;
+////    }
+
+////    public void GenerateEnclosingOrthogonalRectangle(List<string> _telemetry)
+////    {
+////        double minX = double.MaxValue;
+////        double maxX = double.MinValue;
+////        double minY = double.MaxValue;
+////        double maxY = double.MinValue;
+
+////        foreach (var curve in _dto.FaceBoundaryCurves)
+////        {
+////            for (int i = 0; i <= 1; i++)
+////            {
+////                var point = curve.GetEndPoint(i);
+
+////                if (point.X < minX) minX = point.X;
+////                if (point.X > maxX) maxX = point.X;
+////                if (point.Y < minY) minY = point.Y;
+////                if (point.Y > maxY) maxY = point.Y;
+////            }
+////        }
+
+////        _dto.MinX = minX;
+////        _dto.MaxX = maxX;
+////        _dto.MinY = minY;
+////        _dto.MaxY = maxY;
+
+////        _dto.ZLevel = _dto.FaceBoundaryCurves.First().GetEndPoint(0).Z;
+////    }
+
+////    public void SubdivideTopBoundaryLine(List<string> _telemetry)
+////    {
+////        if (_dto.SubdivisionSeparation <= 0)
+////        {
+////            _telemetry?.Add("SubdivisionSeparation is zero or negative. Cannot subdivide.");
+////            throw new InvalidOperationException("Subdivision separation must be greater than zero.");
+////        }
+
+////        var result = new List<XYZ>();
+
+////        double currentX = _dto.MinX + _dto.SubdivisionSeparation;
+
+////        while (currentX < _dto.MaxX)
+////        {
+////            result.Add(new XYZ(currentX, _dto.MaxY, _dto.ZLevel));
+////            currentX += _dto.SubdivisionSeparation;
+////        }
+
+////        _dto.TopLineSubdivisionPoints = result;
+////    }
+
+////    public void GenerateVerticalLines(List<string> _telemetry)
+////    {
+////        var result = new List<Line>();
+////        double revitMinimumLineLength = 0.001;
+
+////        foreach (var item in _dto.TopLineSubdivisionPoints)
+////        {
+////            var endPoint = new XYZ(item.X, _dto.MinY, _dto.ZLevel);
+
+////            if (item.DistanceTo(endPoint) > revitMinimumLineLength)
+////            {
+////                result.Add(Line.CreateBound(item, endPoint));
+////            }
+////            else
+////            {
+////                _telemetry?.Add($"Skipped vertical line at X: {item.X} - distance too short for Revit API.");
+////            }
+////        }
+
+////        _dto.FullVerticalLines = result;
+////    }
+
+////    public void IntersectVerticalLinesWithFaceBoundaryLines(List<string> _telemetry)
+////    {
+////        if (_dto.FullVerticalLines == null || _dto.FaceBoundaryCurves == null)
+////        {
+////            _telemetry?.Add("Missing vertical lines or boundary curves.");
+////            throw new InvalidOperationException("Cannot calculate intersections without required geometry.");
+////        }
+
+////        var intersectionsDict = new Dictionary<Line, List<XYZ>>();
+
+////        foreach (var verticalLine in _dto.FullVerticalLines)
+////        {
+////            var rawIntersectionPoints = new List<XYZ>();
+
+////            foreach (var boundaryCurve in _dto.FaceBoundaryCurves)
+////            {
+////                // Revit 2026 API Update: Use the new Curve.Intersect signature with the Detailed option
+////                var intersectResult = boundaryCurve.Intersect(verticalLine, CurveIntersectResultOption.Detailed);
+
+////                // GetOverlaps() safely retrieves the intersection points and overlap intervals
+////                var overlaps = intersectResult?.GetOverlaps();
+
+////                if (overlaps != null)
+////                {
+////                    foreach (var overlap in overlaps)
+////                    {
+////                        // overlap.Point directly gives us the evaluated XYZ intersection coordinate
+////                        if (overlap.Point != null)
+////                        {
+////                            rawIntersectionPoints.Add(overlap.Point);
+////                        }
+////                    }
+////                }
+////            }
+
+////            // Deduplicate corner overlaps (The Corner Trap)
+////            var uniqueIntersections = new List<XYZ>();
+////            foreach (var pt in rawIntersectionPoints)
+////            {
+////                if (!uniqueIntersections.Any(u => u.IsAlmostEqualTo(pt)))
+////                {
+////                    uniqueIntersections.Add(pt);
+////                }
+////            }
+
+////            intersectionsDict.Add(verticalLine, uniqueIntersections);
+////        }
+
+////        _dto.VerticalLinesIntersections = intersectionsDict;
+////    }
+
+////    public void FilterFaceOuterBoundaryInternalSegments(List<string> _telemetry)
+////    {
+////        if (_dto.VerticalLinesIntersections == null)
+////        {
+////            _telemetry?.Add("Intersection dictionary is null.");
+////            throw new InvalidOperationException("Intersections must be calculated before filtering.");
+////        }
+
+////        var result = new List<Line>();
+
+////        // 0.0016 feet is Revit's strict internal threshold for short curves
+////        double revitMinimumLineLength = 0.0016;
+
+////        foreach (var kvp in _dto.VerticalLinesIntersections)
+////        {
+////            var baseVerticalLine = kvp.Key;
+////            var intersectionPoints = kvp.Value;
+
+////            if (intersectionPoints.Count >= 2)
+////            {
+////                // Sort by Y to ensure we are "walking" the line from bottom to top
+////                var sortedPoints = intersectionPoints.OrderBy(p => p.Y).ToList();
+
+////                // Parity Check: Pairs 0->1, 2->3 are always internal segments inside a closed loop
+////                for (int i = 0; i < sortedPoints.Count - 1; i += 2)
+////                {
+////                    var start = sortedPoints[i];
+////                    var end = sortedPoints[i + 1];
+
+////                    // Guard against Revit's short curve exception
+////                    if (start.DistanceTo(end) > revitMinimumLineLength)
+////                    {
+////                        result.Add(Line.CreateBound(start, end));
+////                    }
+////                    else
+////                    {
+////                        _telemetry?.Add($"Skipped internal segment at X: {start.X} - distance too short.");
+////                    }
+////                }
+////            }
+////            else if (intersectionPoints.Count == 1)
+////            {
+////                // This happens if a line perfectly grazes the outermost edge/corner of the face
+////                _telemetry?.Add($"Vertical line at X: {baseVerticalLine.GetEndPoint(0).X} grazed the boundary (1 point) and was skipped.");
+////            }
+////        }
+
+////        _dto.SubdivisoryLines = result;
+////    }
+
+////    public void SetResult(List<string> _telemetry)
+////    {
+////        Result = _dto.SubdivisoryLines ?? new List<Line>();
+////    }
+////}
+
+////public class Face_SubdivideInInternalVerticalLinesDto : Dto
+////{
+////    [Print(nameof(TypeFormatter.Face))]
+////    public Face FaceToSubdivide { get; set; }
+
+////    [Print(nameof(TypeFormatter.Double))]
+////    public double SubdivisionSeparation { get; set; }
+
+////    [Print(nameof(TypeFormatter.XYZ))]
+////    public double SubdivisionBasis { get; set; }
+
+
+
+////    [Print(nameof(TypeFormatter.CurveList))]
+////    public List<Curve> FaceBoundaryCurves { get; set; }
+
+
+////    [Print(nameof(TypeFormatter.Double))]
+////    public double MinX { get; set; }
+
+
+////    [Print(nameof(TypeFormatter.Double))]
+////    public double MaxX { get; set; }
+
+
+////    [Print(nameof(TypeFormatter.Double))]
+////    public double MinY { get; set; }
+
+
+////    [Print(nameof(TypeFormatter.Double))]
+////    public double MaxY { get; set; }
+
+
+////    [Print(nameof(TypeFormatter.Double))]
+////    public double ZLevel { get; set; }
+
+
+////    [Print(nameof(TypeFormatter.XYZList))]
+////    public List<XYZ> TopLineSubdivisionPoints { get; set; }
+
+
+////    [Print(nameof(TypeFormatter.LineList))]
+////    public List<Line> FullVerticalLines { get; set; }
+
+////    public Dictionary<Line, List<XYZ>> VerticalLinesIntersections { get; set; }
+
+
+////    [Print(nameof(TypeFormatter.LineList))]
+////    public List<Line> SubdivisoryLines { get; set; }
+////}

@@ -77,13 +77,32 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
 
 
         /////////////////////////////////
-        /// Floor Internal Supports generation
+        /// Floor Vertical Internal Supports generation
         /////////////////////////////////
         /* 15 */
         Add(GetInternalBottomShapeTopFace);
         /* 16 */
-        //Add(GenerateBottomShapeTopFaceVerticalSubdivisoryLines);
+        Add(GenerateBottomShapeTopFaceVerticalSubdivisoryLines);
+        /* 17 */
+        Add(GenerateBottomShapeTopFaceVerticalSubdivisoryLinesContours);
+        /* 18 */
+        Add(ModelBottomShapeTopFaceVerticalSubdivisoryLines);
 
+        /////////////////////////////////
+        /// Floor Horizontal Internal Supports generation
+        /////////////////////////////////
+        /* 19 */
+        Add(GenerateBottomShapeTopFaceHorizontalSubdivisoryLines);
+        /* 20 */
+        Add(GenerateBottomShapeTopFaceHorizontalSubdivisoryLinesContours);
+        /* 21 */
+        Add(ModelBottomShapeTopFaceHorizontalSubdivisoryLines);
+
+
+
+        /////////////////////////////////
+        /// Cleanup
+        /////////////////////////////////
         Add(HideInterestFloor, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
     }
 
@@ -278,13 +297,93 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
     public void GenerateBottomShapeTopFaceVerticalSubdivisoryLines(List<string> _telemetry) 
     {
         _dto.BottomShapeTopFaceVerticalSubdivisoryLines = RunSubworkflow<
-        Face_SubdivideInInternalVerticalLines,
-        Face_SubdivideInInternalVerticalLinesDto,
+        Face_SubdivideInInternalLines,
+        Face_SubdivideInInternalLinesDto,
         List<Line>
         >(
-            [_dto.InternalBottomShapeTopFace, (CARDBOARD_THICKNESS * 10)]
+            [_dto.InternalBottomShapeTopFace, (CARDBOARD_THICKNESS * 10), SubdivisionAxis.Y]
         );
     }
+    public void GenerateBottomShapeTopFaceVerticalSubdivisoryLinesContours(List<string> _telemetry)
+    {
+        _dto.BottomShapeTopFaceVerticalSubdivisoryLinesPiecesContours = RunSubworkflow<
+        LineList_GenerateCurveLoopsFromLines,
+        LineList_GenerateCurveLoopsFromLinesDto,
+        List<List<Line>>
+        >(
+            [_dto.BottomShapeTopFaceVerticalSubdivisoryLines, CARDBOARD_THICKNESS]
+        );
+    }
+    public void ModelBottomShapeTopFaceVerticalSubdivisoryLines(List<string> _telemetry)
+    {
+        var pieceHeight = (_dto.InterestFloorDFMAData.TopFaceHighestPoint.Z - _dto.InterestFloorDFMAData.BottomFaceLowestPoint.Z) - CARDBOARD_THICKNESS * 4;
+
+        var bottomShapeTopFaceVerticalSubdivisoryLinesPiecesContoursCount = _dto.BottomShapeTopFaceVerticalSubdivisoryLinesPiecesContours.Count;
+
+        _telemetry.Add($"bottomShapeTopFaceVerticalSubdivisoryLinesPiecesContoursCount: {bottomShapeTopFaceVerticalSubdivisoryLinesPiecesContoursCount}");
+
+        for (int i = 0; i < bottomShapeTopFaceVerticalSubdivisoryLinesPiecesContoursCount; i++)
+        {
+            var item = _dto.BottomShapeTopFaceVerticalSubdivisoryLinesPiecesContours[i];
+
+            RunSubworkflow<
+            DirectShape_ModelPlanarByBoundaryLines,
+            DirectShape_ModelByBoundaryLinesDto,
+            DirectShapeDMFAData
+            >(
+                [item, XYZ.BasisZ, pieceHeight, $"BottomShapeTopFaceVerticalSubdivisoryLinesPiecesContours{i + 1}"]
+            );
+        }
+    }
+
+
+
+    /////////////////////////////////
+    /// Floor Horizontal Internal Supports generation
+    /////////////////////////////////
+    public void GenerateBottomShapeTopFaceHorizontalSubdivisoryLines(List<string> _telemetry)
+    {
+        _dto.BottomShapeTopFaceHorizontalSubdivisoryLines = RunSubworkflow<
+        Face_SubdivideInInternalLines,
+        Face_SubdivideInInternalLinesDto,
+        List<Line>
+        >(
+            [_dto.InternalBottomShapeTopFace, (CARDBOARD_THICKNESS * 20), SubdivisionAxis.X]
+        );
+    }
+    public void GenerateBottomShapeTopFaceHorizontalSubdivisoryLinesContours(List<string> _telemetry)
+    {
+        _dto.BottomShapeTopFaceHorizontalSubdivisoryLinesPiecesContours = RunSubworkflow<
+        LineList_GenerateCurveLoopsFromLines,
+        LineList_GenerateCurveLoopsFromLinesDto,
+        List<List<Line>>
+        >(
+            [_dto.BottomShapeTopFaceHorizontalSubdivisoryLines, CARDBOARD_THICKNESS]
+        );
+    }
+    public void ModelBottomShapeTopFaceHorizontalSubdivisoryLines(List<string> _telemetry)
+    {
+        var pieceHeight = (_dto.InterestFloorDFMAData.TopFaceHighestPoint.Z - _dto.InterestFloorDFMAData.BottomFaceLowestPoint.Z) - CARDBOARD_THICKNESS * 4;
+
+        var bottomShapeTopFaceHorizontalSubdivisoryLinesPiecesContoursCount = _dto.BottomShapeTopFaceHorizontalSubdivisoryLinesPiecesContours.Count;
+
+        _telemetry.Add($"bottomShapeTopFaceHorizontalSubdivisoryLinesPiecesContoursCount: {bottomShapeTopFaceHorizontalSubdivisoryLinesPiecesContoursCount}");
+
+        for (int i = 0; i < bottomShapeTopFaceHorizontalSubdivisoryLinesPiecesContoursCount; i++)
+        {
+            var item = _dto.BottomShapeTopFaceHorizontalSubdivisoryLinesPiecesContours[i];
+
+            RunSubworkflow<
+            DirectShape_ModelPlanarByBoundaryLines,
+            DirectShape_ModelByBoundaryLinesDto,
+            DirectShapeDMFAData
+            >(
+                [item, XYZ.BasisZ, pieceHeight, $"BottomShapeTopFaceHorizontalSubdivisoryLinesPiecesContours{i + 1}"]
+            );
+        }
+    }
+
+
 
 
 
@@ -351,7 +450,11 @@ public class GenerateMarkedFloorsDFMADto : Dto
 
     [Print(nameof(TypeFormatter.LineList))]
     public List<Line> BottomShapeTopFaceVerticalSubdivisoryLines { get; set; }
+    public List<List<Line>> BottomShapeTopFaceVerticalSubdivisoryLinesPiecesContours { get; set; }
 
+    [Print(nameof(TypeFormatter.LineList))]
+    public List<Line> BottomShapeTopFaceHorizontalSubdivisoryLines { get; set; }
+    public List<List<Line>> BottomShapeTopFaceHorizontalSubdivisoryLinesPiecesContours { get; set; }
 
 
     public List<Line> AdjustedInZCoordinateOuterCurveLoopDisplacedLines { get; set; }

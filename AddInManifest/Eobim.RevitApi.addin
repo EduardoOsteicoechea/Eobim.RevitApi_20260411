@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+  <AddIn Type="Command">
+    <Text>DfMA — Generate Marked Floors</Text>
+    <Name>Eobim.RevitApi</Name>
+    <Assembly>Eobim.RevitApi\Eobim.RevitApi.dll</Assembly>
+    <AddInId>D3A5F8B2-1E4C-4A9F-B7D6-8012345678AB</AddInId>
+    <FullClassName>Eobim.RevitApi.Commands.GenerateMarkedFloorsDFMA</FullClassName>
+    <VendorId>Eobim</VendorId>
+    <VendorDescription>Eobim DfMA / Revit automation</VendorDescription>
+  </AddIn>
+</RevitAddIns>

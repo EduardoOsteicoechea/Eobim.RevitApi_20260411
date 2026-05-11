@@ -110,7 +110,17 @@ public abstract class ManagedWorkflow<Dto, TResult> : ISubworkflow<Dto, TResult>
             RecordData(executedActionCounter);
         }
     }
-    public Autodesk.Revit.UI.Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
+
+    /// <summary>
+    /// When non-null, the first N workflow actions (1-based count) run inside a TransactionGroup that is assimilated
+    /// before any remaining actions. Use for committing Revit geometry before file I/O that must not roll back DB work.
+    /// </summary>
+    protected virtual int? TransactionGroupGeometryPhaseLastActionOneBased => null;
+
+    /// <summary>Runs after the geometry TransactionGroup has assimilated and before post-geometry actions (e.g. DXF snapshot).</summary>
+    protected virtual void OnAfterGeometryTransactionGroupBeforeFileIo() { }
+
+    public virtual Autodesk.Revit.UI.Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
     {
         _commandData = commandData;
 
@@ -124,6 +134,15 @@ public abstract class ManagedWorkflow<Dto, TResult> : ISubworkflow<Dto, TResult>
 
         SetActions();
 
+        var geometryPhaseLastOneBased = TransactionGroupGeometryPhaseLastActionOneBased;
+        if (geometryPhaseLastOneBased is null)
+            return ExecuteExternalCommandSingleTransactionGroup(ref message, elements);
+
+        return ExecuteExternalCommandSplitGeometryThenPostActions(ref message, elements, geometryPhaseLastOneBased.Value);
+    }
+
+    private Autodesk.Revit.UI.Result ExecuteExternalCommandSingleTransactionGroup(ref string message, ElementSet elements)
+    {
         using (TransactionGroup? transGroup = new TransactionGroup(_doc, _workflowName))
         {
             try
@@ -140,7 +159,7 @@ public abstract class ManagedWorkflow<Dto, TResult> : ISubworkflow<Dto, TResult>
             {
                 if (transGroup.HasStarted() == true)
                 {
-                    transGroup.RollBack(); 
+                    transGroup.RollBack();
                     _isRolledBack = true;
                 }
 
@@ -151,6 +170,57 @@ public abstract class ManagedWorkflow<Dto, TResult> : ISubworkflow<Dto, TResult>
             {
                 RecordData();
             }
+        }
+    }
+
+    private Autodesk.Revit.UI.Result ExecuteExternalCommandSplitGeometryThenPostActions(ref string message, ElementSet elements, int geometryActionsOneBasedCount)
+    {
+        if (geometryActionsOneBasedCount < 1 || geometryActionsOneBasedCount > _actions.Count)
+            throw new InvalidOperationException($"{nameof(TransactionGroupGeometryPhaseLastActionOneBased)} must be between 1 and the registered action count ({_actions.Count}).");
+
+        var geometryExclusiveEndZeroBased = geometryActionsOneBasedCount;
+        var geometryAssimilated = false;
+
+        try
+        {
+            using (TransactionGroup transGroup = new TransactionGroup(_doc, _workflowName))
+            {
+                transGroup.Start();
+                try
+                {
+                    for (int i = 0; i < geometryExclusiveEndZeroBased; i++)
+                        ExecuteParticularizedStyleForSingleAction(i);
+
+                    transGroup.Assimilate();
+                    geometryAssimilated = true;
+                }
+                catch
+                {
+                    if (transGroup.HasStarted() == true)
+                        transGroup.RollBack();
+
+                    throw;
+                }
+            }
+
+            OnAfterGeometryTransactionGroupBeforeFileIo();
+
+            for (int i = geometryExclusiveEndZeroBased; i < _actions.Count; i++)
+                ExecuteParticularizedStyleForSingleAction(i);
+
+            return Autodesk.Revit.UI.Result.Succeeded;
+        }
+        catch (Exception ex)
+        {
+            if (!geometryAssimilated)
+                _isRolledBack = true;
+
+            message = ex.Message;
+            return Autodesk.Revit.UI.Result.Failed;
+        }
+        finally
+        {
+            RecordData();
         }
     }
 
@@ -175,38 +245,41 @@ public abstract class ManagedWorkflow<Dto, TResult> : ISubworkflow<Dto, TResult>
     private void ParticularizedTransactionsWorkflow()
     {
         for (int i = 0; i < _actions.Count; i++)
+            ExecuteParticularizedStyleForSingleAction(i);
+    }
+
+    private void ExecuteParticularizedStyleForSingleAction(int i)
+    {
+        var action = _actions[i];
+        var actionName = action.action.Method.Name;
+        var actionTransactionManagementOption = action.transactionManagementOption;
+        var actionRequiresTransaction = actionTransactionManagementOption
+            is TransactionManagementOptions.RequiresDedicatedTransactionForAction
+            or TransactionManagementOptions.RequiresEnclosingTransactionForCommand;
+
+        if (actionRequiresTransaction)
         {
-            var action = _actions[i];
-            var actionName = action.action.Method.Name;
-            var actionTransactionManagementOption = action.transactionManagementOption;
-            var actionRequiresTransaction = actionTransactionManagementOption
-                is TransactionManagementOptions.RequiresDedicatedTransactionForAction
-                or TransactionManagementOptions.RequiresEnclosingTransactionForCommand;
-
-            if (actionRequiresTransaction)
+            using (Transaction t = new Transaction(_doc, actionName))
             {
-                using (Transaction t = new Transaction(_doc, actionName))
+                try
                 {
-                    try
-                    {
-                        t.Start();
+                    t.Start();
 
-                        ManageAction(action.action, action.mustLogAction, i + 1);
+                    ManageAction(action.action, action.mustLogAction, i + 1);
 
-                        t.Commit();
-                    }
-                    catch
-                    {
-                        t.RollBack();
+                    t.Commit();
+                }
+                catch
+                {
+                    t.RollBack();
 
-                        throw;
-                    }
+                    throw;
                 }
             }
-            else
-            {
-                ManageAction(action.action, action.mustLogAction, i + 1);
-            }
+        }
+        else
+        {
+            ManageAction(action.action, action.mustLogAction, i + 1);
         }
     }
     private void TransactionlessWorkflow()

@@ -1,7 +1,7 @@
 ﻿using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using Eobim.RevitApi.Framework;
-namespace Eobim.RevitApi.Workflows;
+namespace Eobim.RevitApi;
 
 public class LineList_GenerateDisplacedLinesWorkflow(Document doc, string parentCommandName)
 :

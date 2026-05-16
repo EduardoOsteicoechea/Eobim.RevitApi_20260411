@@ -111,44 +111,6 @@ public class DirectShape_ModelPlanarByBoundaryLines(Document doc, string workflo
         _dto.DirectShape.SetShape(new List<GeometryObject> { _dto.Solid });
     }
 
-    //public void ExtractDirectShapeLeadFace(List<string> _stateTrace)
-    //{
-    //    var faceGeometry = _dto.DirectShape.get_Geometry(new Options { ComputeReferences = true, DetailLevel = ViewDetailLevel.Fine });
-
-    //    var solid = faceGeometry.OfType<Solid>().FirstOrDefault();
-
-    //    var faces = solid?.Faces.Cast<Face>();
-
-    //    var result = faces?.FirstOrDefault(a =>
-    //    {
-    //        var faceNormal = a.ComputeNormal(new UV(.5, .5));
-    //        return faceNormal.IsAlmostEqualTo(_dto.ExtrusionDirection);
-    //    });
-
-    //    if (result is null) throw new NullReferenceException("Lead face not found.");
-
-    //    _dto.DirectShapeLeadFace = result;
-    //}
-
-    //public void ExtractDirectShapeBottomFace(List<string> _stateTrace)
-    //{
-    //    var faceGeometry = _dto.DirectShape.get_Geometry(new Options { ComputeReferences = true, DetailLevel = ViewDetailLevel.Fine });
-
-    //    var solid = faceGeometry.OfType<Solid>().FirstOrDefault();
-
-    //    var faces = solid?.Faces.Cast<Face>();
-
-    //    var result = faces?.FirstOrDefault(a =>
-    //    {
-    //        var faceNormal = a.ComputeNormal(new UV(.5, .5));
-    //        return faceNormal.IsAlmostEqualTo(_dto.ExtrusionDirection.Negate());
-    //    });
-
-    //    if (result is null) throw new NullReferenceException("Lead face not found.");
-
-    //    _dto.DirectShapeBottomFace = result;
-    //}
-
     public void ExtractDirectShapeLeadFace(List<string> _stateTrace)
     {
         var faceGeometry = _dto.DirectShape.get_Geometry(new Options { ComputeReferences = true, DetailLevel = ViewDetailLevel.Fine });

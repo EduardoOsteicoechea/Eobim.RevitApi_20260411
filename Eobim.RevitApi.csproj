@@ -8,8 +8,8 @@
     <!-- Ensures NuGet assemblies (e.g. netDxf.dll) are copied next to the add-in output for default ALC probing. -->
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <!-- Revit 2027 per-machine add-ins root (%AppData%\Roaming\Autodesk\Revit\Addins\2027\). -->
-    <RevitAddins2027Root>$(AppData)\Autodesk\Revit\Addins\2027</RevitAddins2027Root>
-    <EobimRevitApiDeployDir>$(RevitAddins2027Root)\Eobim.RevitApi</EobimRevitApiDeployDir>
+    <!--<RevitAddins2027Root>$(AppData)\Autodesk\Revit\Addins\2027</RevitAddins2027Root>
+    <EobimRevitApiDeployDir>$(RevitAddins2027Root)\Eobim.RevitApi</EobimRevitApiDeployDir>-->
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,9 +17,9 @@
     <PackageReference Include="Revit_All_Main_Versions_API_x64" Version="2026.0.0" />
   </ItemGroup>
 
-  <ItemGroup>
+  <!--<ItemGroup>
     <None Include="AddInManifest\Eobim.RevitApi.addin" />
-  </ItemGroup>
+  </ItemGroup>-->
 
   <!--
     Post-build: copy full build output (Debug or Release) into the Revit 2027 add-ins deployment folder
@@ -27,7 +27,7 @@
       if not exist "$(EobimRevitApiDeployDir)" mkdir "$(EobimRevitApiDeployDir)"
       xcopy "$(TargetDir)." "$(EobimRevitApiDeployDir)\" /E /Y /I /H /Q
   -->
-  <Target Name="DeployEobimRevitApiToRevit2027" AfterTargets="Build">
+  <!--<Target Name="DeployEobimRevitApiToRevit2027" AfterTargets="Build">
     <MakeDir Directories="$(EobimRevitApiDeployDir)" />
     <Exec
       WorkingDirectory="$(MSBuildProjectDirectory)"
@@ -36,6 +36,6 @@
       SourceFiles="$(MSBuildThisFileDirectory)AddInManifest\Eobim.RevitApi.addin"
       DestinationFolder="$(RevitAddins2027Root)"
       SkipUnchangedFiles="true" />
-  </Target>
+  </Target>-->
 
 </Project>

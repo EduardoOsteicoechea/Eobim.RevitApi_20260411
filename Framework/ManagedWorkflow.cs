@@ -135,6 +135,7 @@ public abstract class ManagedWorkflow<Dto, TResult> : ISubworkflow<Dto, TResult>
         SetActions();
 
         var geometryPhaseLastOneBased = TransactionGroupGeometryPhaseLastActionOneBased;
+
         if (geometryPhaseLastOneBased is null)
             return ExecuteExternalCommandSingleTransactionGroup(ref message, elements);
 

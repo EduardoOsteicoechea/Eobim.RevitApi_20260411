@@ -1,4 +1,5 @@
 ﻿using Autodesk.Revit.DB;
+using Autodesk.Revit.UI;
 using Eobim.RevitApi.Framework;
 
 namespace Eobim.RevitApi.MultiStepActions;
@@ -19,11 +20,11 @@ MultistepObservableAction<DFMA_PlacePiecesByRowsAndColumsDto, List<DirectShapeDM
     protected override void SetActions()
     {
         Add(SetDirectShapeDMFADataPlacementData, true, TransactionManagementOptions.RequiresEnclosingTransactionForCommand);
-        Add(SetResult, true, TransactionManagementOptions.RequiresEnclosingTransactionForCommand);
     }
 
     public void SetDirectShapeDMFADataPlacementData(List<string> _stateTrace)
     {
+        var result = new List<DirectShapeDMFAData>();
         // 1. FIXED: Start at the origin (or a specific real coordinate), not at infinity!
         var currentX = _dto.InitialX;
         var currentY = _dto.InitialY;
@@ -84,6 +85,7 @@ MultistepObservableAction<DFMA_PlacePiecesByRowsAndColumsDto, List<DirectShapeDM
             // STEP 4: ASSIGN TO DIRECTSHAPE
             // ==========================================
             var directShapeCategory = Category.GetCategory(_doc, BuiltInCategory.OST_GenericModel);
+
             var displacedDirectShape = DirectShape.CreateElement(_doc, directShapeCategory.Id);
 
             displacedDirectShape.Name = $"{item.DirectShape.Name}_displaced";
@@ -92,15 +94,15 @@ MultistepObservableAction<DFMA_PlacePiecesByRowsAndColumsDto, List<DirectShapeDM
 
             item.DisplacedCurveLoop = faceOuterLoop;
 
+            var directShapeDMFAData = new DirectShapeDMFAData(displacedDirectShape);
+
+            result.Add(directShapeDMFAData);
+
             currentX += item.MaxX - item.MinX;
             //currentY += 0;
         }
-    }
 
-
-    public void SetResult(List<string> _stateTrace)
-    {
-        Result = new List<DirectShapeDMFAData>();
+        Result = result;
     }
 }
 

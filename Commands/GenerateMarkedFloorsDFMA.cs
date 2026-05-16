@@ -39,6 +39,11 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
     private readonly string CARDBOARD_FAMILY_NAME = "Carboard_Segment_001_adaptative";
     private readonly string CARDBOARD_TYPE_NAME = "Type 1";
 
+    // --- SHEET FAMILY CONSTANTS & EXPORT PATHS ---
+    private readonly string SHEET_FAMILY_PATH = @"C:\Users\eduar\Desktop\Room_003\Revit2027\Letter_Sheet_001.rfa";
+    private readonly string SHEET_FAMILY_NAME = "Letter_Sheet_001";
+    private readonly string SHEET_TYPE_NAME = "Type 1";
+
     private readonly string DXF_EXPORT_DIRECTORY = @"C:\Users\eduar\Desktop\Room_003\Revit2027\DXF_Exports";
     private readonly string PDF_EXPORT_DIRECTORY = @"C:\Users\eduar\Desktop\Room_003\Revit2027\PDF_Exports";
 
@@ -109,6 +114,10 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
         ///////////////////////////////////
         /* 23 */
         Add(OrderlyPlaceFaces);
+        /* 24 */
+        Add(PrepareSheetFamily);
+        /* 25 */
+        Add(GetPrintableAreaMetrics);
 
 
         /////////////////////////////////
@@ -288,7 +297,42 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
             List<(List<Line>, string)>
         >(
             [_dto.BottomFaceOuterCurveLoopDisplacedLines, CARDBOARD_THICKNESS, "vertical", pieceHeight]
-            //[_dto.BottomFaceOuterCurveLoopDisplacedLines, CARDBOARD_THICKNESS, "", 0.0]
+        //[_dto.BottomFaceOuterCurveLoopDisplacedLines, CARDBOARD_THICKNESS, "", 0.0]
+        );
+    }
+
+    private DirectShapeDMFAData ModelFromContourAndDirection
+    (
+
+        List<Line> items,
+        string orientation,
+        int pieceIndex,
+        double pieceHeight,
+        string nameBase,
+        double heightAdjustment = 0.0,
+        bool negateDirection = false
+    )
+    {
+        var extrusionDirection = XYZ.BasisZ;
+
+        if (orientation.Equals("vertical"))
+        {
+            extrusionDirection = items.FirstOrDefault()?.Direction.CrossProduct(XYZ.BasisZ) ?? XYZ.BasisZ;
+
+            if (negateDirection)
+            {
+                extrusionDirection = extrusionDirection.Negate();
+            }
+
+            pieceHeight = CARDBOARD_THICKNESS;
+        }
+
+        return RunSubworkflow<
+            DirectShape_ModelPlanarByBoundaryLines,
+            DirectShape_ModelByBoundaryLinesDto,
+            DirectShapeDMFAData
+        >(
+            [items, extrusionDirection, pieceHeight, $"{nameBase}_{pieceIndex + 1}", heightAdjustment]
         );
     }
 
@@ -298,23 +342,6 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
 
         var pieceHeight = (_dto.InterestFloorDFMAData.TopFaceHighestPoint.Z - _dto.InterestFloorDFMAData.BottomFaceLowestPoint.Z) - CARDBOARD_THICKNESS * 2;
         var contourCount = _dto.BottomFaceOuterCurveLoopDisplacedLinesPiecesContours.Count;
-
-        _telemetry.Add($"BottomFaceOuterCurveLoopDisplacedLinesPiecesContoursCount: {contourCount}");
-
-        //for (int i = 0; i < contourCount; i++)
-        //{
-        //    var item = _dto.BottomFaceOuterCurveLoopDisplacedLinesPiecesContours[i];
-
-        //    var piece = RunSubworkflow<
-        //        DirectShape_ModelPlanarByBoundaryLines,
-        //        DirectShape_ModelByBoundaryLinesDto,
-        //        DirectShapeDMFAData
-        //    >(
-        //        [item.Item1, XYZ.BasisZ, pieceHeight, $"BottomFaceOuterCurveLoopDisplacedLinesPiecesContour_{i + 1}", 0.0]
-        //    );
-
-        //    pieces.Add(piece);
-        //}
 
         for (int i = 0; i < contourCount; i++)
         {
@@ -326,8 +353,11 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
                     item.Item2,
                     i,
                     pieceHeight,
-                    "BottomFaceOuterCurveLoopDisplacedLinesPiecesContour"
-                ));
+                    "BottomFaceOuterCurveLoopDisplacedLinesPiecesContour",
+                    0.0,
+                    true
+                )
+            );
         }
 
         _dto.ExternalVerticalFacesDirectShapeDMFADataList = pieces;
@@ -373,7 +403,7 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
 
     public void ModelBottomShapeTopFaceVerticalSubdivisoryLines(List<string> _telemetry)
     {
-        var result = new List<DirectShapeDMFAData>();
+        var pieces = new List<DirectShapeDMFAData>();
 
         var pieceHeight = (_dto.InterestFloorDFMAData.TopFaceHighestPoint.Z - _dto.InterestFloorDFMAData.BottomFaceLowestPoint.Z) - CARDBOARD_THICKNESS * 4;
         var contourCount = _dto.BottomShapeTopFaceVerticalSubdivisoryLinesPiecesContours.Count;
@@ -383,57 +413,19 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
         for (int i = 0; i < contourCount; i++)
         {
             var item = _dto.BottomShapeTopFaceVerticalSubdivisoryLinesPiecesContours[i];
-            var extrusionDirection = XYZ.BasisZ;
 
-
-            if (item.Item2.Equals("vertical"))
-            {
-                extrusionDirection = item.Item1.FirstOrDefault()?.Direction.CrossProduct(XYZ.BasisZ) ?? XYZ.BasisZ;
-
-                pieceHeight = CARDBOARD_THICKNESS;
-            }
-
-            var piece = RunSubworkflow<
-                DirectShape_ModelPlanarByBoundaryLines,
-                DirectShape_ModelByBoundaryLinesDto,
-                DirectShapeDMFAData
-            >(
-                [item.Item1, extrusionDirection, pieceHeight, $"BottomShapeTopFaceVerticalSubdivisoryLinesPiecesContour_{i + 1}", 0.0]
+            pieces.Add(
+                ModelFromContourAndDirection(
+                    item.Item1,
+                    item.Item2,
+                    i,
+                    pieceHeight,
+                    "BottomShapeTopFaceVerticalSubdivisoryLinesPiecesContour"
+                )
             );
-
-            result.Add(piece);
         }
 
-        _dto.BottomShapeTopFaceVerticalSubdivisoryLinesDirectShapeDMFAData = result;
-    }
-
-    private DirectShapeDMFAData ModelFromContourAndDirection
-    (
-
-        List<Line> items, 
-        string orientation, 
-        int pieceIndex, 
-        double pieceHeight, 
-        string nameBase, 
-        double heightAdjustment = 0.0
-    ) 
-    {
-        var extrusionDirection = XYZ.BasisZ;
-
-        if (orientation.Equals("vertical"))
-        {
-            extrusionDirection = items.FirstOrDefault()?.Direction.CrossProduct(XYZ.BasisZ) ?? XYZ.BasisZ;
-
-            pieceHeight = CARDBOARD_THICKNESS;
-        }
-
-        return RunSubworkflow<
-            DirectShape_ModelPlanarByBoundaryLines,
-            DirectShape_ModelByBoundaryLinesDto,
-            DirectShapeDMFAData
-        >(
-            [items, extrusionDirection, pieceHeight, $"{nameBase}_{pieceIndex + 1}", heightAdjustment]
-        );
+        _dto.BottomShapeTopFaceVerticalSubdivisoryLinesDirectShapeDMFAData = pieces;
     }
 
     /////////////////////////////////
@@ -517,7 +509,7 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
 
     public void ModelBottomShapeTopFaceHorizontalSubdivisoryLines(List<string> _telemetry)
     {
-        var result = new List<DirectShapeDMFAData>();
+        var pieces = new List<DirectShapeDMFAData>();
 
         var pieceHeight = (_dto.InterestFloorDFMAData.TopFaceHighestPoint.Z - _dto.InterestFloorDFMAData.BottomFaceLowestPoint.Z) - CARDBOARD_THICKNESS * 4;
         var contourCount = _dto.BottomShapeTopFaceHorizontalSubdivisoryLinesPiecesContours.Count;
@@ -527,27 +519,21 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
         for (int i = 0; i < contourCount; i++)
         {
             var item = _dto.BottomShapeTopFaceHorizontalSubdivisoryLinesPiecesContours[i];
-            var extrusionDirection = XYZ.BasisZ;
 
-            if (item.Item2.Equals("vertical"))
-            {
-                extrusionDirection = item.Item1.FirstOrDefault()?.Direction.CrossProduct(XYZ.BasisZ).Negate() ?? XYZ.BasisZ;
-
-                pieceHeight = CARDBOARD_THICKNESS;
-            }
-
-            var piece = RunSubworkflow<
-                DirectShape_ModelPlanarByBoundaryLines,
-                DirectShape_ModelByBoundaryLinesDto,
-                DirectShapeDMFAData
-            >(
-                [item.Item1, extrusionDirection, pieceHeight, $"BottomShapeTopFaceHorizontalSubdivisoryLinesPiecesContour_{i + 1}", 0.0]
+            pieces.Add(
+                ModelFromContourAndDirection(
+                    item.Item1,
+                    item.Item2,
+                    i,
+                    pieceHeight,
+                    "BottomShapeTopFaceHorizontalSubdivisoryLinesPiecesContour",
+                    0.0,
+                    true
+                )
             );
-
-            result.Add(piece);
         }
 
-        _dto.BottomShapeTopFaceHorizontalSubdivisoryLinesDirectShapeDMFAData = result;
+        _dto.BottomShapeTopFaceHorizontalSubdivisoryLinesDirectShapeDMFAData = pieces;
     }
 
     /////////////////////////////////
@@ -569,15 +555,15 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
                     _dto.TopFaceDirectShapeDMFAData,
                     _dto.TopInternalFaceDirectShapeDMFAData,
                 }
-                .Concat(
-                    _dto.BottomShapeTopFaceVerticalSubdivisoryLinesDirectShapeDMFAData
-                )
-                .Concat(
-                    _dto.BottomShapeTopFaceHorizontalSubdivisoryLinesDirectShapeDMFAData
-                )
-                .Concat(
-                    _dto.ExternalVerticalFacesDirectShapeDMFADataList
-                )
+                //.Concat(
+                //    _dto.BottomShapeTopFaceVerticalSubdivisoryLinesDirectShapeDMFAData
+                //)
+                //.Concat(
+                //    _dto.BottomShapeTopFaceHorizontalSubdivisoryLinesDirectShapeDMFAData
+                //)
+                //.Concat(
+                //    _dto.ExternalVerticalFacesDirectShapeDMFADataList
+                //)
                 .ToList(),
                 XYZ.BasisZ.Negate(),
                 CARDBOARD_THICKNESS,
@@ -585,136 +571,61 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
                 -10.0, // Start Y
             ]
         );
+
+        _telemetry.Add($"Total pieces placed at start point: {_dto.PiecesPlacedAtStartPoint.Count}");
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    public void ExtractAndFlattenAllPiecesToZ0(List<string> _telemetry)
+    public void PrepareSheetFamily(List<string> _telemetry)
     {
-        _dto.FlattenedPieces = RunSubworkflow<
-            Pieces_ExtractAndFlattenWorkflow,
-            Pieces_ExtractAndFlattenDto,
-            List<DFMAPiece>
+        _dto.SheetFamilySymbol = RunSubworkflow<
+            RevitFamily_EntirelySetForUssageInRevitUI,
+            RevitFamily_EntirelySetForUssageInRevitUIDto,
+            FamilySymbol
         >(
-            [
-                _dto.BottomFaceOuterCurveLoopDisplacedLinesPiecesContours,
-                _dto.BottomShapeTopFaceVerticalSubdivisoryLinesPiecesContours,
-                _dto.BottomShapeTopFaceHorizontalSubdivisoryLinesPiecesContours
-            ]
-        );
-        _telemetry.Add($"Total 2D pieces extracted: {_dto.FlattenedPieces.Count}");
-    }
-
-    public void CalculateCentroidsAndAssignUniqueCodes(List<string> _telemetry)
-    {
-        _dto.CodedPieces = RunSubworkflow<
-            Pieces_AssignCentroidsAndCodesWorkflow,
-            Pieces_AssignCentroidsAndCodesDto,
-            List<DFMAPiece>
-        >(
-            [_dto.FlattenedPieces]
+            [SHEET_FAMILY_PATH, SHEET_FAMILY_NAME, SHEET_TYPE_NAME]
         );
     }
 
-    public void NestPiecesIntoCardboardStockLimits(List<string> _telemetry)
+    public void GetPrintableAreaMetrics(List<string> _telemetry)
     {
-        _dto.NestedLayoutSheets = RunSubworkflow<
-            Pieces_NestIntoCardboardSheetsWorkflow,
-            Pieces_NestIntoCardboardSheetsDto,
-            List<DFMANestedSheet>
-        >(
-            [_dto.CodedPieces, MAX_CARDBOARD_WIDTH, MAX_CARDBOARD_HEIGHT]
-        );
-        _telemetry.Add($"Total physical cardboard sheets required: {_dto.NestedLayoutSheets.Count}");
-    }
-
-    public void ExportNestedLayoutToDXF(List<string> _telemetry)
-    {
-        try
+        if (_dto?.SheetFamilySymbol == null)
         {
-            if (_dto.SheetsForDxfExport is null || _dto.SheetsForDxfExport.Count == 0)
-            {
-                _telemetry.Add("DXF export skipped: no POCO snapshot (SheetsForDxfExport).");
-                return;
-            }
-
-            var exportSuccess = RunSubworkflow<
-                Export_NestedSheetsToDXFWorkflow,
-                Export_NestedSheetsToDXFDto,
-                bool
-            >(
-                [_dto.SheetsForDxfExport, DXF_EXPORT_DIRECTORY]
-            );
-
-            if (!exportSuccess) _telemetry.Add("Warning: DXF Export failed or was partially incomplete.");
+            _telemetry?.Add("Warning: SheetFamilySymbol in DTO is null. Metrics set to 0.0.");
+            return;
         }
-        catch (Exception ex)
-        {
-            _telemetry.Add($"DXF export exception (model already committed through nesting): {ex.Message}");
-        }
+
+        _dto.SheetPrintableHeight = _dto.SheetFamilySymbol.LookupParameter("SheetDrawingAreaHeight")?.AsDouble() ?? 0.0;
+        _dto.SheetPrintableWidth = _dto.SheetFamilySymbol.LookupParameter("SheetDrawingAreaWidth")?.AsDouble() ?? 0.0;
+        _dto.SheetVerticalMargin = _dto.SheetFamilySymbol.LookupParameter("SheetVerticalMargin")?.AsDouble() ?? 0.0;
+        _dto.SheetHorizontalMargin = _dto.SheetFamilySymbol.LookupParameter("SheetHorizontalMargin")?.AsDouble() ?? 0.0;
+
+        _telemetry?.Add($"Metrics extracted: W:{_dto.SheetPrintableWidth}, H:{_dto.SheetPrintableHeight}");
     }
 
-    public void GenerateDraftingViewsFromNestedLayout(List<string> _telemetry)
-    {
-        _dto.AssemblyDraftingViews = RunSubworkflow<
-            RevitViews_CreateDraftingViewsForNestedSheetsWorkflow,
-            RevitViews_CreateDraftingViewsDto,
-            List<ViewDrafting>
-        >(
-            [_dto.NestedLayoutSheets]
-        );
-    }
 
-    public void PlaceDraftingViewsOnAssemblySheets(List<string> _telemetry)
-    {
-        _dto.AssemblySheets = RunSubworkflow<
-            RevitSheets_CreateAndPlaceDraftingViewsWorkflow,
-            RevitSheets_CreateAndPlaceDraftingViewsDto,
-            List<ViewSheet>
-        >(
-            [_dto.AssemblyDraftingViews]
-        );
-    }
 
-    public void ExportSheetsToPDF(List<string> _telemetry)
-    {
-        try
-        {
-            if (_dto.AssemblySheets is null || _dto.AssemblySheets.Count == 0)
-            {
-                _telemetry.Add("PDF export skipped: no assembly sheets (run sheet placement first).");
-                return;
-            }
 
-            var pdfSuccess = RunSubworkflow<
-                Export_SheetsToPDFWorkflow,
-                Export_SheetsToPDFDto,
-                bool
-            >(
-                [_dto.AssemblySheets, PDF_EXPORT_DIRECTORY]
-            );
 
-            if (!pdfSuccess) _telemetry.Add("Warning: PDF export completed unsuccessfully.");
-        }
-        catch (Exception ex)
-        {
-            _telemetry.Add($"PDF export exception (geometry and sheets may already be committed): {ex.Message}");
-        }
-    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     /////////////////////////////////
     /// Cleanup
@@ -786,6 +697,13 @@ public class GenerateMarkedFloorsDFMADto : Dto
     public FamilySymbol CommonCarboardFamilySymbol { get; set; }
     public Family CommonCarboardFamily { get; set; }
     public List<FamilyInstance> OuterBorderPlacedFamilyInstances { get; set; }
+
+
+    public FamilySymbol SheetFamilySymbol { get; set; }
+    public double SheetPrintableHeight { get; set; }
+    public double SheetVerticalMargin { get; set; }
+    public double SheetPrintableWidth { get; set; }
+    public double SheetHorizontalMargin { get; set; }
 }
 
 // -------------------------------------------------------------

@@ -97,25 +97,25 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
         /* 22 */
         Add(ModelBottomShapeTopFaceHorizontalSubdivisoryLines);
 
-        /////////////////////////////////
-        /// Final Output & Fabrication (DXF & PDF)
-        /////////////////////////////////
-        /* 23 */
-        Add(ExtractAndFlattenAllPiecesToZ0);
-        /* 24 */
-        Add(CalculateCentroidsAndAssignUniqueCodes);
-        /* 25 */
-        Add(NestPiecesIntoCardboardStockLimits);
-        /* 26 */
-        Add(ExportNestedLayoutToDXF);
+        ///////////////////////////////////
+        ///// Final Output & Fabrication (DXF & PDF)
+        ///////////////////////////////////
+        ///* 23 */
+        //Add(ExtractAndFlattenAllPiecesToZ0);
+        ///* 24 */
+        //Add(CalculateCentroidsAndAssignUniqueCodes);
+        ///* 25 */
+        //Add(NestPiecesIntoCardboardStockLimits);
+        ///* 26 */
+        //Add(ExportNestedLayoutToDXF);
 
-        // Post–geometry-group: each DB-mutating step runs in its own Transaction (split group ended after step 25).
-        /* 27 */
-        Add(GenerateDraftingViewsFromNestedLayout, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
-        /* 28 */
-        Add(PlaceDraftingViewsOnAssemblySheets, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
-        /* 29 */
-        Add(ExportSheetsToPDF, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
+        //// Post–geometry-group: each DB-mutating step runs in its own Transaction (split group ended after step 25).
+        ///* 27 */
+        //Add(GenerateDraftingViewsFromNestedLayout, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
+        ///* 28 */
+        //Add(PlaceDraftingViewsOnAssemblySheets, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
+        ///* 29 */
+        //Add(ExportSheetsToPDF, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
 
         /////////////////////////////////
         /// Cleanup
@@ -185,7 +185,7 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
             DirectShape_ModelByBoundaryLinesDto,
             DirectShapeDMFAData
         >(
-            [_dto.InterestFloorDFMAData.BottomFaceOuterCurveLoop.Select(a => a as Line).ToList()!, XYZ.BasisZ, CARDBOARD_THICKNESS, "BottomFace"]
+            [_dto.InterestFloorDFMAData.BottomFaceOuterCurveLoop.Select(a => a as Line).ToList()!, XYZ.BasisZ.Negate(), CARDBOARD_THICKNESS, "BottomFace"] // The XYZ.BasisZ.Negate() is inverted
         );
     }
 

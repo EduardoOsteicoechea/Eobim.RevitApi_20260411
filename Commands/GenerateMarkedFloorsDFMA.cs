@@ -118,6 +118,8 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
         Add(PrepareSheetFamily);
         /* 25 */
         Add(GetPrintableAreaMetrics);
+        /* 25 */
+        Add(GenerateSheetsForEachPiece);
 
 
         /////////////////////////////////
@@ -600,6 +602,94 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
         _dto.SheetHorizontalMargin = _dto.SheetFamilySymbol.LookupParameter("SheetHorizontalMargin")?.AsDouble() ?? 0.0;
 
         _telemetry?.Add($"Metrics extracted: W:{_dto.SheetPrintableWidth}, H:{_dto.SheetPrintableHeight}");
+    }
+
+    public void GenerateSheetsForEachPiece(List<string> _telemetry)
+    {
+        // Assuming your DTO holds the active document. 
+        // If it is stored elsewhere in your class, adjust this reference.
+        Document doc = _doc;
+
+        // 1. Calculate the exact center of the printable area.
+        // Assuming the Title Block's origin (0,0) is at the bottom-left corner.
+        double sheetCenterX = _dto.SheetHorizontalMargin + (_dto.SheetPrintableWidth / 2.0);
+        double sheetCenterY = _dto.SheetVerticalMargin + (_dto.SheetPrintableHeight / 2.0);
+        XYZ sheetPlacementPoint = new XYZ(sheetCenterX, sheetCenterY, 0);
+
+        // 2. Retrieve the ViewFamilyType for 3D views to generate the fabrication views
+        ViewFamilyType view3DType = new FilteredElementCollector(doc)
+            .OfClass(typeof(ViewFamilyType))
+            .Cast<ViewFamilyType>()
+            .FirstOrDefault(vft => vft.ViewFamily == ViewFamily.ThreeDimensional);
+
+        if (view3DType == null)
+        {
+            _telemetry.Add("Error: Could not find a 3D ViewFamilyType in the document.");
+            return;
+        }
+
+        // 3. Batch the creation process inside a single transaction for performance
+        using (Transaction trans = new Transaction(doc, "Generate DFMA Fabrication Sheets"))
+        {
+            trans.Start();
+
+            int sheetCount = 0;
+
+            foreach (var item in _dto.PiecesPlacedAtStartPoint)
+            {
+                if (item.DirectShape == null) continue;
+
+                // Create the Sheet
+                ViewSheet sheet = ViewSheet.Create(doc, _dto.SheetFamilySymbol.Id);
+                sheet.Name = $"DFMA Piece {item.DirectShape.Id}";
+                sheet.SheetNumber = $"FAB-{sheetCount + 1:D3}";
+
+                // Create a new 3D view for this specific piece
+                View3D view = View3D.CreateIsometric(doc, view3DType.Id);
+
+                // Set the required 1:20 scale
+                view.Scale = 20;
+
+                // Orient the view Top-Down (Orthographic) so the flat cardboard pieces are perfectly planar
+                ViewOrientation3D topOrientation = new ViewOrientation3D(
+                    XYZ.BasisZ,             // Eye position
+                    XYZ.BasisY,             // Up direction
+                    XYZ.BasisZ.Negate()     // Forward direction (looking straight down)
+                );
+                view.SetOrientation(topOrientation);
+
+                // Isolate the element to prevent the rest of the model from showing up on the fabrication sheet
+                view.IsolateElementTemporary(item.DirectShape.Id);
+
+                // Configure the crop box around the piece's bounding box
+                BoundingBoxXYZ bbox = item.DirectShape.get_BoundingBox(view);
+                if (bbox != null)
+                {
+                    // Add a slight padding (e.g., 0.5 feet) so the crop box isn't touching the edge of the geometry
+                    double padding = 0.5;
+                    bbox.Min -= new XYZ(padding, padding, padding);
+                    bbox.Max += new XYZ(padding, padding, padding);
+
+                    view.CropBox = bbox;
+                    view.CropBoxActive = true;
+                    view.CropBoxVisible = false; // Hides the crop boundary lines on the sheet
+                }
+
+                // Place the Viewport centered in the calculated printable area
+                if (Viewport.CanAddViewToSheet(doc, sheet.Id, view.Id))
+                {
+                    Viewport.Create(doc, sheet.Id, view.Id, sheetPlacementPoint);
+                    sheetCount++;
+                }
+                else
+                {
+                    _telemetry.Add($"Warning: Could not add view to {sheet.SheetNumber}.");
+                }
+            }
+
+            trans.Commit();
+            _telemetry.Add($"Successfully generated and placed {sheetCount} DFMA fabrication sheets.");
+        }
     }
 
 

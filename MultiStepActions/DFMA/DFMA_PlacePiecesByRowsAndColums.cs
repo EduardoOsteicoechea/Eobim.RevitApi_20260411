@@ -19,12 +19,13 @@ MultistepObservableAction<DFMA_PlacePiecesByRowsAndColumsDto, List<DirectShapeDM
 
     protected override void SetActions()
     {
-        Add(SetDirectShapeDMFADataPlacementData, true, TransactionManagementOptions.RequiresEnclosingTransactionForCommand);
+        Add(SetDirectShapeDMFADataPlacementData, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
+        Add(CollectDirectShapes);
     }
 
     public void SetDirectShapeDMFADataPlacementData(List<string> _stateTrace)
     {
-        var result = new List<DirectShapeDMFAData>();
+        var result = new List<DirectShape>();
         // 1. FIXED: Start at the origin (or a specific real coordinate), not at infinity!
         var currentX = _dto.InitialX;
         var currentY = _dto.InitialY;
@@ -94,12 +95,23 @@ MultistepObservableAction<DFMA_PlacePiecesByRowsAndColumsDto, List<DirectShapeDM
 
             item.DisplacedCurveLoop = faceOuterLoop;
 
-            var directShapeDMFAData = new DirectShapeDMFAData(displacedDirectShape);
-
-            result.Add(directShapeDMFAData);
+            result.Add(displacedDirectShape);
 
             currentX += item.MaxX - item.MinX;
             //currentY += 0;
+        }
+
+        _dto.DisplacedDirectShapes = result;
+    }
+
+    public void CollectDirectShapes(List<string> _stateTrace)
+    {
+        var result = new List<DirectShapeDMFAData>();
+
+        foreach (var item in _dto.DisplacedDirectShapes)
+        {
+            var directShapeDMFAData = new DirectShapeDMFAData(item);
+            result.Add(directShapeDMFAData);
         }
 
         Result = result;
@@ -114,5 +126,6 @@ public class DFMA_PlacePiecesByRowsAndColumsDto : Dto
     public double ExtrusionThickness { get; set; }
     public double InitialX { get; set; }
     public double InitialY { get; set; }
+    public List<DirectShape> DisplacedDirectShapes { get; set; }
     
 }

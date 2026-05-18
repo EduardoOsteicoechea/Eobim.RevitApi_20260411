@@ -5,15 +5,29 @@ using System.Windows;
 
 namespace Eobim.RevitApi.MultiStepActions;
 
-public class RevitFamily_EntirelySetForUssageInRevitUI(Document doc, string workflowName)
-    : MultistepObservableAction<RevitFamily_EntirelySetForUssageInRevitUIDto, FamilySymbol>(doc, workflowName)
+public class RevitFamily_EntirelySetForUssageInRevitUIArgs
 {
-    public override void SafelyInitializeInputs(object[] args)
+    public string FamilyPath { get; set; }
+    public string FamilyName { get; set; }
+    public string FamilyTypeName { get; set; }
+}
+
+public class RevitFamily_EntirelySetForUssageInRevitUI(Document doc, string workflowName)
+    : 
+MultistepObservableAction<
+    RevitFamily_EntirelySetForUssageInRevitUIArgs, 
+    RevitFamily_EntirelySetForUssageInRevitUIDto, 
+    FamilySymbol
+> (doc, workflowName)
+{
+    public override void SafelyInitializeInputs(RevitFamily_EntirelySetForUssageInRevitUIArgs args)
     {
-        _dto.FamilyPath = args[0] as string;
-        _dto.FamilyName = args[1] as string;
-        _dto.FamilyTypeName = args[2] as string;
+        _dto.FamilyPath = args.FamilyPath;
+        _dto.FamilyName = args.FamilyName;
+        _dto.FamilyTypeName = args.FamilyTypeName;
     }
+
+    public override void SafelyInitializeInputs(object[] args) {}
 
     protected override void SetActions()
     {

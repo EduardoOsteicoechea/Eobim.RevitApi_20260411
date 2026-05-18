@@ -9,11 +9,10 @@ using static RevitCurveLoop;
 namespace Eobim.RevitApi.Commands;
 
 [Autodesk.Revit.Attributes.Transaction(Autodesk.Revit.Attributes.TransactionMode.Manual)]
-public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarkedFloorsDFMADto, object>
+public class GenerateMarkedFloorsDFMA
+    : 
+Framework.ExternalCommand<bool, GenerateMarkedFloorsDFMADto, object>
 {
-    /// <summary>Assimilate the geometry TransactionGroup after nesting (step 25); file export runs afterward.</summary>
-    //protected override int? TransactionGroupGeometryPhaseLastActionOneBased => 25;
-
     protected override void OnAfterGeometryTransactionGroupBeforeFileIo()
     {
         if (_dto.NestedLayoutSheets is null)
@@ -49,6 +48,7 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
 
 
     public override void SafelyInitializeInputs(object[] args) { }
+    public override void SafelyInitializeInputs(bool args) { }
 
     protected override void SetActions()
     {
@@ -115,7 +115,8 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
         /* 23 */
         Add(OrderlyPlaceFaces);
         /* 24 */
-        Add(PrepareSheetFamily);/* 25 */
+        Add(PrepareSheetFamily);
+        /* 25 */
         Add(GetPrintableAreaMetrics);
         /* 26 */
         Add(GroupPiecesByWidthAndHeight, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
@@ -139,11 +140,17 @@ public class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<GenerateMarked
     public void RunPrepareFamilyWorkflow(List<string> _telemetry)
     {
         _dto.CommonCarboardFamilySymbol = RunSubworkflow<
+            RevitFamily_EntirelySetForUssageInRevitUIArgs,
             RevitFamily_EntirelySetForUssageInRevitUI,
             RevitFamily_EntirelySetForUssageInRevitUIDto,
             FamilySymbol
         >(
-            [CARDBOARD_FAMILY_PATH, CARDBOARD_FAMILY_NAME, CARDBOARD_TYPE_NAME]
+            new RevitFamily_EntirelySetForUssageInRevitUIArgs 
+            {
+                FamilyPath = CARDBOARD_FAMILY_PATH,
+                FamilyName = CARDBOARD_FAMILY_NAME,
+                FamilyTypeName = CARDBOARD_TYPE_NAME,
+            }
         );
     }
 

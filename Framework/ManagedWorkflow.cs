@@ -5,7 +5,7 @@ using System.Text.Json;
 namespace Eobim.RevitApi.Framework;
 
 
-public abstract class ExternalCommand<Dto, TResult> : ManagedWorkflow<Dto, TResult>, IExternalCommand where Dto : class, IDto, new()
+public abstract class ExternalCommand<TArgs, Dto, TResult> : ManagedWorkflow<TArgs, Dto, TResult>, IExternalCommand where Dto : class, IDto, new()
 {
     protected override void SetCriticalVariables()
     {
@@ -23,7 +23,7 @@ public abstract class ExternalCommand<Dto, TResult> : ManagedWorkflow<Dto, TResu
     }
 }
 
-public abstract class MultistepObservableAction<Dto, TResult> : ManagedWorkflow<Dto, TResult>
+public abstract class MultistepObservableAction<TArgs, Dto, TResult> : ManagedWorkflow<TArgs, Dto, TResult>
     where Dto : class, IDto, new()
 {
     public string _parentCommandName { get; protected set; }
@@ -48,15 +48,16 @@ public abstract class MultistepObservableAction<Dto, TResult> : ManagedWorkflow<
     }
 }
 
-public interface ISubworkflow<Dto, TResult>
+public interface ISubworkflow<TArgs, Dto, TResult>
 {
     public void SafelyInitializeInputs(object[] args);
+    public void SafelyInitializeInputs(TArgs args);
     public void Execute(int executedActionCounter);
     public TResult Result { get; set; }
 }
 
 
-public abstract class ManagedWorkflow<Dto, TResult> : ISubworkflow<Dto, TResult> where Dto : class, IDto, new()
+public abstract class ManagedWorkflow<TArgs, Dto, TResult> : ISubworkflow<TArgs, Dto, TResult> where Dto : class, IDto, new()
 {
     protected ExternalCommandData? _commandData;
     protected Document? _doc;
@@ -78,10 +79,26 @@ public abstract class ManagedWorkflow<Dto, TResult> : ISubworkflow<Dto, TResult>
 
     public abstract void SafelyInitializeInputs(object[] args);
 
+    public abstract void SafelyInitializeInputs(TArgs args);
+
 
 
     protected UResult RunSubworkflow<TSubworkflow, TSubDto, UResult>(object[] args)
-    where TSubworkflow : ISubworkflow<TSubDto, UResult>
+    where TSubworkflow : ISubworkflow<TArgs, TSubDto, UResult>
+    where TSubDto : class, IDto, new()
+    {
+        Type subworkflowType = typeof(TSubworkflow);
+        var subWorkflow = (TSubworkflow)Activator.CreateInstance(subworkflowType, [_doc!, _workflowName!]);
+        subWorkflow!.SafelyInitializeInputs(args);
+        subWorkflow.Execute(_executedActionCounter);
+        if (subWorkflow.Result is null) throw new NullReferenceException($"null result in {subWorkflow.GetType().FullName}");
+        return subWorkflow.Result;
+    }
+
+
+
+    protected UResult RunSubworkflow<TSWArgs, TSubworkflow, TSubDto, UResult>(TSWArgs args)
+    where TSubworkflow : ISubworkflow<TSWArgs, TSubDto, UResult>
     where TSubDto : class, IDto, new()
     {
         Type subworkflowType = typeof(TSubworkflow);

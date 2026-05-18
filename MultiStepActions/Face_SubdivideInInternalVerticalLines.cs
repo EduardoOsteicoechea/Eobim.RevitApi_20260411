@@ -1,16 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using Autodesk.Revit.DB;
+﻿using Autodesk.Revit.DB;
 using Eobim.RevitApi.Framework;
 
 namespace Eobim.RevitApi.MultiStepActions
 {
-    public enum SubdivisionAxis
-    {
-        X = 0, // Generates Vertical Lines
-        Y = 1  // Generates Horizontal Lines
-    }
 
     public class Face_SubdivideInInternalLines(Document doc, string workflowName)
         : MultistepObservableAction<Face_SubdivideInInternalLinesDto, List<Line>>(doc, workflowName)

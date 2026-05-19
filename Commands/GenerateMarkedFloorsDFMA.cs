@@ -31,6 +31,8 @@ public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, 
     private readonly string SHEET_FAMILY_NAME = "Letter_Sheet_001";
     private readonly string SHEET_TYPE_NAME = "Margin_only";
 
+    private readonly string EXPORT_FOLDER_PATH = @"C:\Users\eduar\Desktop\Room_003\Revit2027\PDF_Exports";
+
 
     public override void SafelyInitializeInputs(bool args) { }
 
@@ -103,8 +105,11 @@ public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, 
         /* 25 */
         Add(GetPrintableAreaMetrics);
         /* 26 */
+        Add(ArrangePiecesInGroups, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
+        /* 27 */
         Add(GenerateSheetsForArrangedGroups, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
-
+        /* 28 */
+        Add(ExportSheetsToPDF);
 
         /////////////////////////////////
         /// Cleanup
@@ -748,112 +753,7 @@ public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, 
         _telemetry?.Add($"Metrics extracted: {nameof(_dto.SheetPrintableHeight)}: {_dto.SheetPrintableWidth}, {nameof(_dto.SheetPrintableWidth)}: {_dto.SheetPrintableHeight}");
     }
 
-    public void GenerateSheetsForArrangedGroups(List<string> _telemetry)
-    {
-        if (_dto.PiecesPlacedAtStartPoint == null || !_dto.PiecesPlacedAtStartPoint.Any())
-        {
-            _telemetry.Add("No pieces available from the layout step to pack into sheets.");
-            return;
-        }
-
-        if (_dto.SheetFamilySymbol != null && !_dto.SheetFamilySymbol.IsActive)
-        {
-            _dto.SheetFamilySymbol.Activate();
-        }
-
-        // Apply SCALE factor to the printable area metrics so the physical geometry fits
-        double widthLimit = _dto.SheetPrintableWidth > 0 ? _dto.SheetPrintableWidth * SCALE : 35.0 * SCALE;
-        double heightLimit = _dto.SheetPrintableHeight > 0 ? _dto.SheetPrintableHeight * SCALE : 25.0 * SCALE;
-
-        // Define proportional, tightly packed layout gaps
-        double itemGap = 1.0; // 1 foot between pieces (adjust to your preference)
-        double sheetGap = widthLimit * 0.05; // Gap between sheets is just 5% of the sheet's total width
-        if (sheetGap < 5.0) sheetGap = 5.0;  // Fallback to ensure they never touch
-
-        // Shift origin so sheets don't crash into the original model or initial placement location
-        double currentSheetX = 0.0;
-        double currentSheetY = 100.0;
-
-        double cursorX = currentSheetX;
-        double cursorY = currentSheetY;
-        double currentRowMaxHeight = 0.0;
-        int sheetCount = 0;
-
-        // Helper action to place the visual border of the sheet behind the geometry
-        Action placeSheetGeometry = () =>
-        {
-            if (_dto.SheetFamilySymbol != null)
-            {
-                _doc.Create.NewFamilyInstance(new XYZ(currentSheetX, currentSheetY, 0), _dto.SheetFamilySymbol, Autodesk.Revit.DB.Structure.StructuralType.NonStructural);
-            }
-            sheetCount++;
-            _telemetry.Add($"Generated Sheet Boundary {sheetCount} at X={currentSheetX:F2}, Y={currentSheetY:F2}");
-        };
-
-        // Initialize the first sheet
-        placeSheetGeometry();
-
-        // Pack the perfectly placed pieces from Action 23 into the scaled sheets
-        foreach (var item in _dto.PiecesPlacedAtStartPoint)
-        {
-            var ds = item.DirectShape;
-            if (ds == null) continue;
-
-            // Extract exact geometric footprint in its CURRENT infinite-row position
-            GetTightBoundsFromElement(ds, out double minX, out double maxX, out double minY, out double maxY, out double minZ, out double maxZ);
-
-            if (minX == double.MaxValue)
-            {
-                // Fallback to Revit bounding box if triangulation fails on this particular DirectShape
-                var bbox = ds.get_BoundingBox(null);
-                if (bbox != null)
-                {
-                    minX = bbox.Min.X; maxX = bbox.Max.X;
-                    minY = bbox.Min.Y; maxY = bbox.Max.Y;
-                    minZ = bbox.Min.Z; maxZ = bbox.Max.Z;
-                }
-                else
-                {
-                    _telemetry.Add($"  -> SKIPPED {ds.Name}: No computable bounds.");
-                    continue;
-                }
-            }
-
-            double pieceWidth = maxX - minX;
-            double pieceHeight = maxY - minY;
-
-            // 1. CHECK ROW WIDTH: Wrap to the next line on the same sheet if width is exceeded
-            // (We ensure cursorX > currentSheetX so if a piece is wider than the sheet, it still places it instead of infinite looping)
-            if (cursorX + pieceWidth > currentSheetX + widthLimit && cursorX > currentSheetX)
-            {
-                cursorX = currentSheetX;
-                cursorY += currentRowMaxHeight + itemGap;
-                currentRowMaxHeight = 0.0;
-            }
-
-            // 2. CHECK SHEET HEIGHT: Start a brand new sheet to the right if height is exceeded
-            if (cursorY + pieceHeight > currentSheetY + heightLimit && cursorY > currentSheetY)
-            {
-                currentSheetX += widthLimit + sheetGap; // Move entire sheet to the right
-                cursorX = currentSheetX;
-                cursorY = currentSheetY; // Reset to bottom of the new sheet
-                currentRowMaxHeight = 0.0;
-
-                placeSheetGeometry();
-            }
-
-            // Physically move the element from its infinite-row location to its packed sheet location
-            XYZ translationVector = new XYZ(cursorX - minX, cursorY - minY, 0);
-            ElementTransformUtils.MoveElement(_doc, ds.Id, translationVector);
-
-            currentRowMaxHeight = Math.Max(currentRowMaxHeight, pieceHeight);
-            cursorX += pieceWidth + itemGap;
-        }
-
-        _telemetry.Add($"Successfully packed {_dto.PiecesPlacedAtStartPoint.Count} pieces into {sheetCount} sheets.");
-    }
-
-    //public void GenerateSheetsForArrangedGroups(List<string> _telemetry)
+    //public void ArrangePiecesInGroups(List<string> _telemetry)
     //{
     //    if (_dto.PiecesPlacedAtStartPoint == null || !_dto.PiecesPlacedAtStartPoint.Any())
     //    {
@@ -870,9 +770,10 @@ public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, 
     //    double widthLimit = _dto.SheetPrintableWidth > 0 ? _dto.SheetPrintableWidth * SCALE : 35.0 * SCALE;
     //    double heightLimit = _dto.SheetPrintableHeight > 0 ? _dto.SheetPrintableHeight * SCALE : 25.0 * SCALE;
 
-    //    // Define layout gaps
-    //    double itemGap = 2.0 / 12.0; // Standard layout gap between pieces
-    //    double sheetGap = 10.0 * SCALE; // Distance between adjacent sheets
+    //    // Define proportional, tightly packed layout gaps
+    //    double itemGap = 1.0; // 1 foot between pieces (adjust to your preference)
+    //    double sheetGap = widthLimit * 0.05; // Gap between sheets is just 5% of the sheet's total width
+    //    if (sheetGap < 5.0) sheetGap = 5.0;  // Fallback to ensure they never touch
 
     //    // Shift origin so sheets don't crash into the original model or initial placement location
     //    double currentSheetX = 0.0;
@@ -927,6 +828,7 @@ public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, 
     //        double pieceHeight = maxY - minY;
 
     //        // 1. CHECK ROW WIDTH: Wrap to the next line on the same sheet if width is exceeded
+    //        // (We ensure cursorX > currentSheetX so if a piece is wider than the sheet, it still places it instead of infinite looping)
     //        if (cursorX + pieceWidth > currentSheetX + widthLimit && cursorX > currentSheetX)
     //        {
     //            cursorX = currentSheetX;
@@ -937,7 +839,7 @@ public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, 
     //        // 2. CHECK SHEET HEIGHT: Start a brand new sheet to the right if height is exceeded
     //        if (cursorY + pieceHeight > currentSheetY + heightLimit && cursorY > currentSheetY)
     //        {
-    //            currentSheetX += widthLimit + sheetGap;
+    //            currentSheetX += widthLimit + sheetGap; // Move entire sheet to the right
     //            cursorX = currentSheetX;
     //            cursorY = currentSheetY; // Reset to bottom of the new sheet
     //            currentRowMaxHeight = 0.0;
@@ -946,11 +848,8 @@ public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, 
     //        }
 
     //        // Physically move the element from its infinite-row location to its packed sheet location
-    //        // We only need to translate X and Y, since Z was perfectly flattened in the previous step
     //        XYZ translationVector = new XYZ(cursorX - minX, cursorY - minY, 0);
     //        ElementTransformUtils.MoveElement(_doc, ds.Id, translationVector);
-
-    //        _telemetry.Add($"Moved {ds.Name} | W: {pieceWidth:F2}, H: {pieceHeight:F2} | To Sheet X:{currentSheetX:F2}, Cursor Y:{cursorY:F2}");
 
     //        currentRowMaxHeight = Math.Max(currentRowMaxHeight, pieceHeight);
     //        cursorX += pieceWidth + itemGap;
@@ -958,6 +857,131 @@ public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, 
 
     //    _telemetry.Add($"Successfully packed {_dto.PiecesPlacedAtStartPoint.Count} pieces into {sheetCount} sheets.");
     //}
+
+    public void ArrangePiecesInGroups(List<string> _telemetry)
+    {
+        if (_dto.PiecesPlacedAtStartPoint == null || !_dto.PiecesPlacedAtStartPoint.Any())
+        {
+            _telemetry.Add("No pieces available from the layout step to pack into sheets.");
+            return;
+        }
+
+        if (_dto.SheetFamilySymbol != null && !_dto.SheetFamilySymbol.IsActive)
+        {
+            _dto.SheetFamilySymbol.Activate();
+        }
+
+        // Initialize the tracking list for the sheets
+        _dto.ArrangedSheets = new List<List<DirectShapeDMFAData>>();
+        var currentSheetGroup = new List<DirectShapeDMFAData>();
+
+        // Apply SCALE factor to the printable area metrics so the physical geometry fits
+        double widthLimit = _dto.SheetPrintableWidth > 0 ? _dto.SheetPrintableWidth * SCALE : 35.0 * SCALE;
+        double heightLimit = _dto.SheetPrintableHeight > 0 ? _dto.SheetPrintableHeight * SCALE : 25.0 * SCALE;
+
+        // Define proportional, tightly packed layout gaps
+        double itemGap = 1.0;
+        double sheetGap = widthLimit * 0.05;
+        if (sheetGap < 5.0) sheetGap = 5.0;
+
+        // Shift origin so sheets don't crash into the original model or initial placement location
+        double currentSheetX = 0.0;
+        double currentSheetY = 100.0;
+
+        double cursorX = currentSheetX;
+        double cursorY = currentSheetY;
+        double currentRowMaxHeight = 0.0;
+        int sheetCount = 0;
+
+        // Helper action to place the visual border of the sheet behind the geometry
+        Action placeSheetGeometry = () =>
+        {
+            if (_dto.SheetFamilySymbol != null)
+            {
+                _doc.Create.NewFamilyInstance(new XYZ(currentSheetX, currentSheetY, 0), _dto.SheetFamilySymbol, Autodesk.Revit.DB.Structure.StructuralType.NonStructural);
+            }
+            sheetCount++;
+            _telemetry.Add($"Generated Sheet Boundary {sheetCount} at X={currentSheetX:F2}, Y={currentSheetY:F2}");
+        };
+
+        // Initialize the first sheet
+        placeSheetGeometry();
+
+        // Pack the perfectly placed pieces from Action 23 into the scaled sheets
+        foreach (var item in _dto.PiecesPlacedAtStartPoint)
+        {
+            var ds = item.DirectShape;
+            if (ds == null) continue;
+
+            // Extract exact geometric footprint in its CURRENT infinite-row position
+            GetTightBoundsFromElement(ds, out double minX, out double maxX, out double minY, out double maxY, out double minZ, out double maxZ);
+
+            if (minX == double.MaxValue)
+            {
+                // Fallback to Revit bounding box if triangulation fails
+                var bbox = ds.get_BoundingBox(null);
+                if (bbox != null)
+                {
+                    minX = bbox.Min.X; maxX = bbox.Max.X;
+                    minY = bbox.Min.Y; maxY = bbox.Max.Y;
+                    minZ = bbox.Min.Z; maxZ = bbox.Max.Z;
+                }
+                else
+                {
+                    _telemetry.Add($"  -> SKIPPED {ds.Name}: No computable bounds.");
+                    continue;
+                }
+            }
+
+            double pieceWidth = maxX - minX;
+            double pieceHeight = maxY - minY;
+
+            // 1. CHECK ROW WIDTH: Wrap to the next line on the same sheet if width is exceeded
+            if (cursorX + pieceWidth > currentSheetX + widthLimit && cursorX > currentSheetX)
+            {
+                cursorX = currentSheetX;
+                cursorY += currentRowMaxHeight + itemGap;
+                currentRowMaxHeight = 0.0;
+            }
+
+            // 2. CHECK SHEET HEIGHT: Start a brand new sheet to the right if height is exceeded
+            if (cursorY + pieceHeight > currentSheetY + heightLimit && cursorY > currentSheetY)
+            {
+                // We reached the end of a sheet, so save the current group to the DTO and start fresh
+                if (currentSheetGroup.Count > 0)
+                {
+                    _dto.ArrangedSheets.Add(new List<DirectShapeDMFAData>(currentSheetGroup));
+                    currentSheetGroup.Clear();
+                }
+
+                currentSheetX += widthLimit + sheetGap; // Move entire sheet to the right
+                cursorX = currentSheetX;
+                cursorY = currentSheetY; // Reset to bottom of the new sheet
+                currentRowMaxHeight = 0.0;
+
+                placeSheetGeometry();
+            }
+
+            // Physically move the element from its infinite-row location to its packed sheet location
+            XYZ translationVector = new XYZ(cursorX - minX, cursorY - minY, 0);
+            ElementTransformUtils.MoveElement(_doc, ds.Id, translationVector);
+
+            // Add the item to the current sheet grouping
+            currentSheetGroup.Add(item);
+
+            currentRowMaxHeight = Math.Max(currentRowMaxHeight, pieceHeight);
+            cursorX += pieceWidth + itemGap;
+        }
+
+        // Add the final group after the loop finishes
+        if (currentSheetGroup.Count > 0)
+        {
+            _dto.ArrangedSheets.Add(currentSheetGroup);
+        }
+
+        _telemetry.Add($"Successfully grouped {_dto.PiecesPlacedAtStartPoint.Count} pieces into {_dto.ArrangedSheets.Count} sheet groups.");
+    }
+
 
     // Helper method tightly bound to the main workflow to extract actual vertices from the solid geometry
     private void GetTightBoundsFromElement(DirectShape ds, out double bMinX, out double bMaxX, out double bMinY, out double bMaxY, out double bMinZ, out double bMaxZ)
@@ -995,7 +1019,350 @@ public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, 
     }
 
 
+    public void GenerateSheetsForArrangedGroups(List<string> _telemetry)
+    {
+        Document doc = _doc;
 
+        // Ensure the tracking list exists
+        if (_dto.GeneratedSheetIds == null)
+            _dto.GeneratedSheetIds = new List<ElementId>();
+
+        // 1. Calculate the exact center of the printable area.
+        double sheetCenterX = _dto.SheetHorizontalMargin + (_dto.SheetPrintableWidth / 2.0);
+        double sheetCenterY = _dto.SheetVerticalMargin + (_dto.SheetPrintableHeight / 2.0);
+        XYZ sheetPlacementPoint = new XYZ(sheetCenterX, sheetCenterY, 0);
+
+        // 2. Retrieve the ViewFamilyType for 3D views
+        ViewFamilyType view3DType = new FilteredElementCollector(doc)
+            .OfClass(typeof(ViewFamilyType))
+            .Cast<ViewFamilyType>()
+            .FirstOrDefault(vft => vft.ViewFamily == ViewFamily.ThreeDimensional);
+
+        if (view3DType == null)
+        {
+            _telemetry.Add("Error: Could not find a 3D ViewFamilyType in the document.");
+            return;
+        }
+
+        int sheetCount = 0;
+
+        // Iterate over the pre-arranged layout grids
+        foreach (var pieceGroup in _dto.ArrangedSheets)
+        {
+            if (pieceGroup.Count == 0) continue;
+
+            // Extract all DirectShape ElementIds for this specific layout group
+            List<ElementId> groupIds = pieceGroup
+                .Where(p => p.DirectShape != null)
+                .Select(p => p.DirectShape.Id)
+                .ToList();
+
+            if (groupIds.Count == 0) continue;
+
+            // Create the Sheet
+            ViewSheet sheet = ViewSheet.Create(doc, _dto.SheetFamilySymbol.Id);
+            sheet.Name = $"DFMA Cut File - Bed {sheetCount + 1}";
+            sheet.SheetNumber = $"FAB-{sheetCount + 1:D3}";
+
+            // Create the View
+            View3D view = View3D.CreateIsometric(doc, view3DType.Id);
+            view.Scale = 20; // 1:20 Scale
+
+            ViewOrientation3D topOrientation = new ViewOrientation3D(
+                XYZ.BasisZ,
+                XYZ.BasisY,
+                XYZ.BasisZ.Negate()
+            );
+            view.SetOrientation(topOrientation);
+
+            // Isolate ALL pieces belonging to this specific sheet group
+            view.IsolateElementsTemporary(groupIds);
+
+            // Force the temporary isolation to become permanent for this view.
+            // This completely disables the annoying export popup!
+            view.ConvertTemporaryHideIsolateToPermanent();
+
+            // Calculate the combined bounding box for the entire arranged grid
+            BoundingBoxXYZ combinedBBox = GetCombinedBoundingBox(pieceGroup, view);
+
+            if (combinedBBox != null)
+            {
+                double padding = 0.5;
+                combinedBBox.Min -= new XYZ(padding, padding, padding);
+                combinedBBox.Max += new XYZ(padding, padding, padding);
+
+                view.CropBox = combinedBBox;
+                view.CropBoxActive = true;
+                view.CropBoxVisible = false;
+            }
+
+            if (Viewport.CanAddViewToSheet(doc, sheet.Id, view.Id))
+            {
+                Viewport.Create(doc, sheet.Id, view.Id, sheetPlacementPoint);
+
+                // TRACK THE SHEET FOR PDF EXPORT
+                _dto.GeneratedSheetIds.Add(sheet.Id);
+                sheetCount++;
+            }
+            else
+            {
+                _telemetry.Add($"Warning: Could not add view to {sheet.SheetNumber}.");
+            }
+        }
+
+        _telemetry.Add($"Successfully generated and placed {sheetCount} grouped DFMA fabrication sheets.");
+    }
+
+    //public void GenerateSheetsForArrangedGroups(List<string> _telemetry)
+    //{
+    //    Document doc = _doc;
+
+    //    // Ensure the tracking list exists
+    //    if (_dto.GeneratedSheetIds == null)
+    //        _dto.GeneratedSheetIds = new List<ElementId>();
+
+    //    // 1. Calculate the exact center of the printable area.
+    //    double sheetCenterX = _dto.SheetHorizontalMargin + (_dto.SheetPrintableWidth / 2.0);
+    //    double sheetCenterY = _dto.SheetVerticalMargin + (_dto.SheetPrintableHeight / 2.0);
+    //    XYZ sheetPlacementPoint = new XYZ(sheetCenterX, sheetCenterY, 0);
+
+    //    // 2. Retrieve the ViewFamilyType for 3D views
+    //    ViewFamilyType view3DType = new FilteredElementCollector(doc)
+    //        .OfClass(typeof(ViewFamilyType))
+    //        .Cast<ViewFamilyType>()
+    //        .FirstOrDefault(vft => vft.ViewFamily == ViewFamily.ThreeDimensional);
+
+    //    if (view3DType == null)
+    //    {
+    //        _telemetry.Add("Error: Could not find a 3D ViewFamilyType in the document.");
+    //        return;
+    //    }
+
+    //    int sheetCount = 0;
+
+    //    // Iterate over the pre-arranged layout grids
+    //    foreach (var pieceGroup in _dto.ArrangedSheets)
+    //    {
+    //        if (pieceGroup.Count == 0) continue;
+
+    //        // Extract all DirectShape ElementIds for this specific layout group
+    //        List<ElementId> groupIds = pieceGroup
+    //            .Where(p => p.DirectShape != null)
+    //            .Select(p => p.DirectShape.Id)
+    //            .ToList();
+
+    //        if (groupIds.Count == 0) continue;
+
+    //        // Create the Sheet
+    //        ViewSheet sheet = ViewSheet.Create(doc, _dto.SheetFamilySymbol.Id);
+    //        sheet.Name = $"DFMA Cut File - Bed {sheetCount + 1}";
+    //        sheet.SheetNumber = $"FAB-{sheetCount + 1:D3}";
+
+    //        // Create the View
+    //        View3D view = View3D.CreateIsometric(doc, view3DType.Id);
+    //        view.Scale = 20; // 1:20 Scale
+
+    //        ViewOrientation3D topOrientation = new ViewOrientation3D(
+    //            XYZ.BasisZ,
+    //            XYZ.BasisY,
+    //            XYZ.BasisZ.Negate()
+    //        );
+    //        view.SetOrientation(topOrientation);
+
+    //        // Isolate ALL pieces belonging to this specific sheet group
+    //        view.IsolateElementsTemporary(groupIds);
+
+    //        // Calculate the combined bounding box for the entire arranged grid
+    //        BoundingBoxXYZ combinedBBox = GetCombinedBoundingBox(pieceGroup, view);
+
+    //        if (combinedBBox != null)
+    //        {
+    //            double padding = 0.5;
+    //            combinedBBox.Min -= new XYZ(padding, padding, padding);
+    //            combinedBBox.Max += new XYZ(padding, padding, padding);
+
+    //            view.CropBox = combinedBBox;
+    //            view.CropBoxActive = true;
+    //            view.CropBoxVisible = false;
+    //        }
+
+    //        if (Viewport.CanAddViewToSheet(doc, sheet.Id, view.Id))
+    //        {
+    //            Viewport.Create(doc, sheet.Id, view.Id, sheetPlacementPoint);
+
+    //            // TRACK THE SHEET FOR PDF EXPORT
+    //            _dto.GeneratedSheetIds.Add(sheet.Id);
+    //            sheetCount++;
+    //        }
+    //        else
+    //        {
+    //            _telemetry.Add($"Warning: Could not add view to {sheet.SheetNumber}.");
+    //        }
+    //    }
+
+    //    _telemetry.Add($"Successfully generated and placed {sheetCount} grouped DFMA fabrication sheets.");
+    //}
+
+
+    //public void GenerateSheetsForArrangedGroups(List<string> _telemetry)
+    //{
+    //    Document doc = _doc;
+
+    //    // 1. Calculate the exact center of the printable area.
+    //    double sheetCenterX = _dto.SheetHorizontalMargin + (_dto.SheetPrintableWidth / 2.0);
+    //    double sheetCenterY = _dto.SheetVerticalMargin + (_dto.SheetPrintableHeight / 2.0);
+    //    XYZ sheetPlacementPoint = new XYZ(sheetCenterX, sheetCenterY, 0);
+
+    //    // 2. Retrieve the ViewFamilyType for 3D views
+    //    ViewFamilyType view3DType = new FilteredElementCollector(doc)
+    //        .OfClass(typeof(ViewFamilyType))
+    //        .Cast<ViewFamilyType>()
+    //        .FirstOrDefault(vft => vft.ViewFamily == ViewFamily.ThreeDimensional);
+
+    //    if (view3DType == null)
+    //    {
+    //        _telemetry.Add("Error: Could not find a 3D ViewFamilyType in the document.");
+    //        return;
+    //    }
+
+    //    //using (Transaction trans = new Transaction(doc, "Generate DFMA Fabrication Sheets"))
+    //    //{
+    //    //    trans.Start();
+
+    //        int sheetCount = 0;
+
+    //        // Iterate over the pre-arranged layout grids instead of individual pieces
+    //        foreach (var pieceGroup in _dto.ArrangedSheets)
+    //        {
+    //            if (pieceGroup.Count == 0) continue;
+
+    //            // Extract all DirectShape ElementIds for this specific layout group
+    //            List<ElementId> groupIds = pieceGroup
+    //                .Where(p => p.DirectShape != null)
+    //                .Select(p => p.DirectShape.Id)
+    //                .ToList();
+
+    //            if (groupIds.Count == 0) continue;
+
+    //            // Create the Sheet
+    //            ViewSheet sheet = ViewSheet.Create(doc, _dto.SheetFamilySymbol.Id);
+    //            sheet.Name = $"DFMA Cut File - Bed {sheetCount + 1}";
+    //            sheet.SheetNumber = $"FAB-{sheetCount + 1:D3}";
+
+    //            // Create the View
+    //            View3D view = View3D.CreateIsometric(doc, view3DType.Id);
+    //            view.Scale = 20;
+
+    //            ViewOrientation3D topOrientation = new ViewOrientation3D(
+    //                XYZ.BasisZ,
+    //                XYZ.BasisY,
+    //                XYZ.BasisZ.Negate()
+    //            );
+    //            view.SetOrientation(topOrientation);
+
+    //            // Isolate ALL pieces belonging to this specific sheet group
+    //            view.IsolateElementsTemporary(groupIds);
+
+    //            // Calculate the combined bounding box for the entire arranged grid
+    //            BoundingBoxXYZ combinedBBox = GetCombinedBoundingBox(pieceGroup, view);
+
+    //            if (combinedBBox != null)
+    //            {
+    //                double padding = 0.5;
+    //                combinedBBox.Min -= new XYZ(padding, padding, padding);
+    //                combinedBBox.Max += new XYZ(padding, padding, padding);
+
+    //                view.CropBox = combinedBBox;
+    //                view.CropBoxActive = true;
+    //                view.CropBoxVisible = false;
+    //            }
+
+    //            if (Viewport.CanAddViewToSheet(doc, sheet.Id, view.Id))
+    //            {
+    //                Viewport.Create(doc, sheet.Id, view.Id, sheetPlacementPoint);
+    //                sheetCount++;
+    //            }
+    //            else
+    //            {
+    //                _telemetry.Add($"Warning: Could not add view to {sheet.SheetNumber}.");
+    //            }
+    //        }
+
+    //        //trans.Commit();
+    //        _telemetry.Add($"Successfully generated and placed {sheetCount} grouped DFMA fabrication sheets.");
+    //    //}
+    //}
+
+    /// <summary>
+    /// Calculates a single overarching BoundingBoxXYZ for a grouped list of elements.
+    /// </summary>
+    private BoundingBoxXYZ GetCombinedBoundingBox(List<DirectShapeDMFAData> pieceGroup, View view)
+    {
+        double minX = double.MaxValue, minY = double.MaxValue, minZ = double.MaxValue;
+        double maxX = double.MinValue, maxY = double.MinValue, maxZ = double.MinValue;
+        bool found = false;
+
+        foreach (var piece in pieceGroup)
+        {
+            if (piece.DirectShape == null) continue;
+
+            BoundingBoxXYZ bbox = piece.DirectShape.get_BoundingBox(view);
+            if (bbox != null)
+            {
+                found = true;
+                minX = Math.Min(minX, bbox.Min.X);
+                minY = Math.Min(minY, bbox.Min.Y);
+                minZ = Math.Min(minZ, bbox.Min.Z);
+
+                maxX = Math.Max(maxX, bbox.Max.X);
+                maxY = Math.Max(maxY, bbox.Max.Y);
+                maxZ = Math.Max(maxZ, bbox.Max.Z);
+            }
+        }
+
+        if (!found) return null;
+
+        return new BoundingBoxXYZ
+        {
+            Min = new XYZ(minX, minY, minZ),
+            Max = new XYZ(maxX, maxY, maxZ)
+        };
+    }
+
+    public void ExportSheetsToPDF(List<string> _telemetry)
+    {
+        if (_dto.GeneratedSheetIds == null || !_dto.GeneratedSheetIds.Any())
+        {
+            _telemetry.Add("No sheets were generated to export.");
+            return;
+        }
+
+        string fileName = "DFMA_Fabrication_Sheets";
+
+        try
+        {
+            PDFExportOptions pdfOptions = new PDFExportOptions
+            {
+                FileName = fileName,
+                Combine = true,
+                ZoomType = ZoomType.Zoom,
+                ZoomPercentage = 100, // Forces 1:20 scale to be respected instead of fitting to page
+                HideScopeBoxes = true,
+                HideUnreferencedViewTags = true,
+                HideReferencePlane = true,
+                PaperFormat = ExportPaperFormat.Default // Uses the Letter_Sheet_001 dimensions
+            };
+
+            // Execute the native Revit API PDF Export
+            _doc.Export(EXPORT_FOLDER_PATH, _dto.GeneratedSheetIds, pdfOptions);
+
+            _telemetry.Add($"Successfully exported {_dto.GeneratedSheetIds.Count} sheets to PDF at: {EXPORT_FOLDER_PATH}\\{fileName}.pdf");
+        }
+        catch (System.Exception ex)
+        {
+            _telemetry.Add($"Failed to export PDF: {ex.Message}");
+        }
+    }
 
 
 
@@ -1080,4 +1447,5 @@ public class GenerateMarkedFloorsDFMADto : Dto
     public double SheetPrintableWidth { get; set; }
     public double SheetHorizontalMargin { get; set; }
     public List<List<DirectShapeDMFAData>> ArrangedSheets { get; set; }
+    public List<ElementId> GeneratedSheetIds { get; set; }
 }

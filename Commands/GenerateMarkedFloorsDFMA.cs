@@ -1023,35 +1023,49 @@ public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, 
     {
         Document doc = _doc;
 
-        // Ensure the tracking list exists
         if (_dto.GeneratedSheetIds == null)
             _dto.GeneratedSheetIds = new List<ElementId>();
 
-        // 1. Calculate the exact center of the printable area.
         double sheetCenterX = _dto.SheetHorizontalMargin + (_dto.SheetPrintableWidth / 2.0);
         double sheetCenterY = _dto.SheetVerticalMargin + (_dto.SheetPrintableHeight / 2.0);
         XYZ sheetPlacementPoint = new XYZ(sheetCenterX, sheetCenterY, 0);
 
-        // 2. Retrieve the ViewFamilyType for 3D views
         ViewFamilyType view3DType = new FilteredElementCollector(doc)
             .OfClass(typeof(ViewFamilyType))
             .Cast<ViewFamilyType>()
             .FirstOrDefault(vft => vft.ViewFamily == ViewFamily.ThreeDimensional);
 
-        if (view3DType == null)
+        // ==========================================
+        // CREATE A SMALL TEXT NOTE TYPE FOR THE SHEET
+        // ==========================================
+        TextNoteType smallTextType = new FilteredElementCollector(doc)
+            .OfClass(typeof(TextNoteType))
+            .Cast<TextNoteType>()
+            .FirstOrDefault(t => t.Name == "DFMA_Small_Label");
+
+        if (smallTextType == null)
         {
-            _telemetry.Add("Error: Could not find a 3D ViewFamilyType in the document.");
-            return;
+            TextNoteType defaultTextType = new FilteredElementCollector(doc)
+                .OfClass(typeof(TextNoteType))
+                .Cast<TextNoteType>()
+                .FirstOrDefault();
+
+            if (defaultTextType != null)
+            {
+                smallTextType = defaultTextType.Duplicate("DFMA_Small_Label") as TextNoteType;
+                // Set text size to 1.5mm (1/16") which is approx 0.0052 feet in internal units
+                smallTextType.get_Parameter(BuiltInParameter.TEXT_SIZE)?.Set(0.005);
+            }
         }
+
+        if (view3DType == null) return;
 
         int sheetCount = 0;
 
-        // Iterate over the pre-arranged layout grids
         foreach (var pieceGroup in _dto.ArrangedSheets)
         {
             if (pieceGroup.Count == 0) continue;
 
-            // Extract all DirectShape ElementIds for this specific layout group
             List<ElementId> groupIds = pieceGroup
                 .Where(p => p.DirectShape != null)
                 .Select(p => p.DirectShape.Id)
@@ -1059,14 +1073,13 @@ public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, 
 
             if (groupIds.Count == 0) continue;
 
-            // Create the Sheet
             ViewSheet sheet = ViewSheet.Create(doc, _dto.SheetFamilySymbol.Id);
             sheet.Name = $"DFMA Cut File - Bed {sheetCount + 1}";
             sheet.SheetNumber = $"FAB-{sheetCount + 1:D3}";
 
-            // Create the View
             View3D view = View3D.CreateIsometric(doc, view3DType.Id);
-            view.Scale = 20; // 1:20 Scale
+            double viewScale = 20.0;
+            view.Scale = (int)viewScale;
 
             ViewOrientation3D topOrientation = new ViewOrientation3D(
                 XYZ.BasisZ,
@@ -1075,18 +1088,16 @@ public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, 
             );
             view.SetOrientation(topOrientation);
 
-            // Isolate ALL pieces belonging to this specific sheet group
             view.IsolateElementsTemporary(groupIds);
-
-            // Force the temporary isolation to become permanent for this view.
-            // This completely disables the annoying export popup!
             view.ConvertTemporaryHideIsolateToPermanent();
 
-            // Calculate the combined bounding box for the entire arranged grid
             BoundingBoxXYZ combinedBBox = GetCombinedBoundingBox(pieceGroup, view);
+            XYZ combinedCenter = XYZ.Zero;
 
             if (combinedBBox != null)
             {
+                combinedCenter = (combinedBBox.Min + combinedBBox.Max) / 2.0;
+
                 double padding = 0.5;
                 combinedBBox.Min -= new XYZ(padding, padding, padding);
                 combinedBBox.Max += new XYZ(padding, padding, padding);
@@ -1099,19 +1110,266 @@ public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, 
             if (Viewport.CanAddViewToSheet(doc, sheet.Id, view.Id))
             {
                 Viewport.Create(doc, sheet.Id, view.Id, sheetPlacementPoint);
-
-                // TRACK THE SHEET FOR PDF EXPORT
                 _dto.GeneratedSheetIds.Add(sheet.Id);
                 sheetCount++;
-            }
-            else
-            {
-                _telemetry.Add($"Warning: Could not add view to {sheet.SheetNumber}.");
+
+                // ==========================================
+                // DRAW THE SMALL TEXT ON THE SHEET
+                // ==========================================
+                if (smallTextType != null && combinedBBox != null)
+                {
+                    foreach (var piece in pieceGroup)
+                    {
+                        if (piece.DirectShape == null) continue;
+
+                        GetTightBoundsFromElement(piece.DirectShape, out double minX, out double maxX, out double minY, out double maxY, out double minZ, out double maxZ);
+                        if (minX == double.MaxValue) continue;
+
+                        XYZ pieceCenter3D = new XYZ((minX + maxX) / 2.0, (minY + maxY) / 2.0, 0);
+
+                        double sheetOffsetX = (pieceCenter3D.X - combinedCenter.X) / viewScale;
+                        double sheetOffsetY = (pieceCenter3D.Y - combinedCenter.Y) / viewScale;
+
+                        XYZ textSheetLocation = new XYZ(
+                            sheetPlacementPoint.X + sheetOffsetX,
+                            sheetPlacementPoint.Y + sheetOffsetY,
+                            0
+                        );
+
+                        string pieceCode = piece.DirectShape.get_Parameter(BuiltInParameter.ALL_MODEL_MARK)?.AsString() ?? "Unknown";
+
+                        TextNoteOptions textOpts = new TextNoteOptions(smallTextType.Id)
+                        {
+                            HorizontalAlignment = HorizontalTextAlignment.Center,
+                            TypeId = smallTextType.Id
+                        };
+
+                        TextNote.Create(doc, sheet.Id, textSheetLocation, pieceCode, textOpts);
+                    }
+                }
             }
         }
 
-        _telemetry.Add($"Successfully generated and placed {sheetCount} grouped DFMA fabrication sheets.");
+        _telemetry.Add($"Successfully generated and wrote 8-digit codes on {sheetCount} grouped DFMA fabrication sheets.");
     }
+
+
+    //public void GenerateSheetsForArrangedGroups(List<string> _telemetry)
+    //{
+    //    Document doc = _doc;
+
+    //    if (_dto.GeneratedSheetIds == null)
+    //        _dto.GeneratedSheetIds = new List<ElementId>();
+
+    //    double sheetCenterX = _dto.SheetHorizontalMargin + (_dto.SheetPrintableWidth / 2.0);
+    //    double sheetCenterY = _dto.SheetVerticalMargin + (_dto.SheetPrintableHeight / 2.0);
+    //    XYZ sheetPlacementPoint = new XYZ(sheetCenterX, sheetCenterY, 0);
+
+    //    ViewFamilyType view3DType = new FilteredElementCollector(doc)
+    //        .OfClass(typeof(ViewFamilyType))
+    //        .Cast<ViewFamilyType>()
+    //        .FirstOrDefault(vft => vft.ViewFamily == ViewFamily.ThreeDimensional);
+
+    //    // Grab the default TextNoteType to write on the sheet
+    //    TextNoteType defaultTextType = new FilteredElementCollector(doc)
+    //        .OfClass(typeof(TextNoteType))
+    //        .Cast<TextNoteType>()
+    //        .FirstOrDefault();
+
+    //    if (view3DType == null) return;
+
+    //    int sheetCount = 0;
+
+    //    foreach (var pieceGroup in _dto.ArrangedSheets)
+    //    {
+    //        if (pieceGroup.Count == 0) continue;
+
+    //        List<ElementId> groupIds = pieceGroup
+    //            .Where(p => p.DirectShape != null)
+    //            .Select(p => p.DirectShape.Id)
+    //            .ToList();
+
+    //        if (groupIds.Count == 0) continue;
+
+    //        ViewSheet sheet = ViewSheet.Create(doc, _dto.SheetFamilySymbol.Id);
+    //        sheet.Name = $"DFMA Cut File - Bed {sheetCount + 1}";
+    //        sheet.SheetNumber = $"FAB-{sheetCount + 1:D3}";
+
+    //        View3D view = View3D.CreateIsometric(doc, view3DType.Id);
+    //        double viewScale = 20.0;
+    //        view.Scale = (int)viewScale;
+
+    //        ViewOrientation3D topOrientation = new ViewOrientation3D(
+    //            XYZ.BasisZ,
+    //            XYZ.BasisY,
+    //            XYZ.BasisZ.Negate()
+    //        );
+    //        view.SetOrientation(topOrientation);
+
+    //        view.IsolateElementsTemporary(groupIds);
+    //        view.ConvertTemporaryHideIsolateToPermanent();
+
+    //        BoundingBoxXYZ combinedBBox = GetCombinedBoundingBox(pieceGroup, view);
+    //        XYZ combinedCenter = XYZ.Zero;
+
+    //        if (combinedBBox != null)
+    //        {
+    //            combinedCenter = (combinedBBox.Min + combinedBBox.Max) / 2.0;
+
+    //            double padding = 0.5;
+    //            combinedBBox.Min -= new XYZ(padding, padding, padding);
+    //            combinedBBox.Max += new XYZ(padding, padding, padding);
+
+    //            view.CropBox = combinedBBox;
+    //            view.CropBoxActive = true;
+    //            view.CropBoxVisible = false;
+    //        }
+
+    //        if (Viewport.CanAddViewToSheet(doc, sheet.Id, view.Id))
+    //        {
+    //            Viewport.Create(doc, sheet.Id, view.Id, sheetPlacementPoint);
+    //            _dto.GeneratedSheetIds.Add(sheet.Id);
+    //            sheetCount++;
+
+    //            // ==========================================
+    //            // DRAW TEXT DIRECTLY ON THE SHEET
+    //            // ==========================================
+    //            if (defaultTextType != null && combinedBBox != null)
+    //            {
+    //                foreach (var piece in pieceGroup)
+    //                {
+    //                    if (piece.DirectShape == null) continue;
+
+    //                    GetTightBoundsFromElement(piece.DirectShape, out double minX, out double maxX, out double minY, out double maxY, out double minZ, out double maxZ);
+    //                    if (minX == double.MaxValue) continue;
+
+    //                    // 1. Find the physical center of the piece in 3D space
+    //                    XYZ pieceCenter3D = new XYZ((minX + maxX) / 2.0, (minY + maxY) / 2.0, 0);
+
+    //                    // 2. Find the offset from the center of the view, scaled down by 1:20
+    //                    double sheetOffsetX = (pieceCenter3D.X - combinedCenter.X) / viewScale;
+    //                    double sheetOffsetY = (pieceCenter3D.Y - combinedCenter.Y) / viewScale;
+
+    //                    // 3. Map that to the final 2D sheet coordinate
+    //                    XYZ textSheetLocation = new XYZ(
+    //                        sheetPlacementPoint.X + sheetOffsetX,
+    //                        sheetPlacementPoint.Y + sheetOffsetY,
+    //                        0
+    //                    );
+
+    //                    // 4. Retrieve the Mark code we assigned in the earlier step
+    //                    string pieceCode = piece.DirectShape.get_Parameter(BuiltInParameter.ALL_MODEL_MARK)?.AsString() ?? "Unknown";
+
+    //                    // 5. Draw the text note directly onto the sheet!
+    //                    TextNoteOptions textOpts = new TextNoteOptions(defaultTextType.Id)
+    //                    {
+    //                        HorizontalAlignment = HorizontalTextAlignment.Center,
+    //                        TypeId = defaultTextType.Id
+    //                    };
+
+    //                    TextNote.Create(doc, sheet.Id, textSheetLocation, pieceCode, textOpts);
+    //                }
+    //            }
+    //        }
+    //    }
+
+    //    _telemetry.Add($"Successfully generated and wrote codes on {sheetCount} grouped DFMA fabrication sheets.");
+    //}
+
+
+    //public void GenerateSheetsForArrangedGroups(List<string> _telemetry)
+    //{
+    //    Document doc = _doc;
+
+    //    // Ensure the tracking list exists
+    //    if (_dto.GeneratedSheetIds == null)
+    //        _dto.GeneratedSheetIds = new List<ElementId>();
+
+    //    // 1. Calculate the exact center of the printable area.
+    //    double sheetCenterX = _dto.SheetHorizontalMargin + (_dto.SheetPrintableWidth / 2.0);
+    //    double sheetCenterY = _dto.SheetVerticalMargin + (_dto.SheetPrintableHeight / 2.0);
+    //    XYZ sheetPlacementPoint = new XYZ(sheetCenterX, sheetCenterY, 0);
+
+    //    // 2. Retrieve the ViewFamilyType for 3D views
+    //    ViewFamilyType view3DType = new FilteredElementCollector(doc)
+    //        .OfClass(typeof(ViewFamilyType))
+    //        .Cast<ViewFamilyType>()
+    //        .FirstOrDefault(vft => vft.ViewFamily == ViewFamily.ThreeDimensional);
+
+    //    if (view3DType == null)
+    //    {
+    //        _telemetry.Add("Error: Could not find a 3D ViewFamilyType in the document.");
+    //        return;
+    //    }
+
+    //    int sheetCount = 0;
+
+    //    // Iterate over the pre-arranged layout grids
+    //    foreach (var pieceGroup in _dto.ArrangedSheets)
+    //    {
+    //        if (pieceGroup.Count == 0) continue;
+
+    //        // Extract all DirectShape ElementIds for this specific layout group
+    //        List<ElementId> groupIds = pieceGroup
+    //            .Where(p => p.DirectShape != null)
+    //            .Select(p => p.DirectShape.Id)
+    //            .ToList();
+
+    //        if (groupIds.Count == 0) continue;
+
+    //        // Create the Sheet
+    //        ViewSheet sheet = ViewSheet.Create(doc, _dto.SheetFamilySymbol.Id);
+    //        sheet.Name = $"DFMA Cut File - Bed {sheetCount + 1}";
+    //        sheet.SheetNumber = $"FAB-{sheetCount + 1:D3}";
+
+    //        // Create the View
+    //        View3D view = View3D.CreateIsometric(doc, view3DType.Id);
+    //        view.Scale = 20; // 1:20 Scale
+
+    //        ViewOrientation3D topOrientation = new ViewOrientation3D(
+    //            XYZ.BasisZ,
+    //            XYZ.BasisY,
+    //            XYZ.BasisZ.Negate()
+    //        );
+    //        view.SetOrientation(topOrientation);
+
+    //        // Isolate ALL pieces belonging to this specific sheet group
+    //        view.IsolateElementsTemporary(groupIds);
+
+    //        // Force the temporary isolation to become permanent for this view.
+    //        // This completely disables the annoying export popup!
+    //        view.ConvertTemporaryHideIsolateToPermanent();
+
+    //        // Calculate the combined bounding box for the entire arranged grid
+    //        BoundingBoxXYZ combinedBBox = GetCombinedBoundingBox(pieceGroup, view);
+
+    //        if (combinedBBox != null)
+    //        {
+    //            double padding = 0.5;
+    //            combinedBBox.Min -= new XYZ(padding, padding, padding);
+    //            combinedBBox.Max += new XYZ(padding, padding, padding);
+
+    //            view.CropBox = combinedBBox;
+    //            view.CropBoxActive = true;
+    //            view.CropBoxVisible = false;
+    //        }
+
+    //        if (Viewport.CanAddViewToSheet(doc, sheet.Id, view.Id))
+    //        {
+    //            Viewport.Create(doc, sheet.Id, view.Id, sheetPlacementPoint);
+
+    //            // TRACK THE SHEET FOR PDF EXPORT
+    //            _dto.GeneratedSheetIds.Add(sheet.Id);
+    //            sheetCount++;
+    //        }
+    //        else
+    //        {
+    //            _telemetry.Add($"Warning: Could not add view to {sheet.SheetNumber}.");
+    //        }
+    //    }
+
+    //    _telemetry.Add($"Successfully generated and placed {sheetCount} grouped DFMA fabrication sheets.");
+    //}
 
     //public void GenerateSheetsForArrangedGroups(List<string> _telemetry)
     //{

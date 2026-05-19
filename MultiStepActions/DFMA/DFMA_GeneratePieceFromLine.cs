@@ -35,52 +35,6 @@ MultistepObservableAction<DFMA_GeneratePieceFromLineArgs, DFMA_GeneratePieceFrom
         _dto.ContourLinesPerpendicularDisplacement = _dto.ContourThickness / 2;
     }
 
-    //public void GenerateCurveLoopsFromOrderedOffsetLines(List<string> _telemetry)
-    //{
-    //    var result = new PieceContour
-    //    {
-    //        ContourWorkplaneAlignmentOption = _dto.ContourWorkplaneAlignmentOption
-    //    };
-
-    //    var line = _dto.InputLine;
-
-    //    result.RotationPoint = _dto.InputLine.GetEndPoint(0);
-
-    //    var displacement = _dto.ContourLinesPerpendicularDisplacement;
-
-    //    List<Line> lineContour = new List<Line>();
-
-    //    _telemetry.Add($"Processing line from {line.GetEndPoint(0)} to {line.GetEndPoint(1)} with direction {line.Direction}");
-    //    _telemetry.Add($"{nameof(result.ContourWorkplaneAlignmentOption)}: {result.ContourWorkplaneAlignmentOption}");
-
-    //    result.ContourInitialLineDirection = line.Direction;
-
-    //    var linePerpendicularDirection = line.Direction.CrossProduct(XYZ.BasisZ).Normalize();
-
-    //    if (result.ContourWorkplaneAlignmentOption.Equals(ContourWorkplaneAlignmentOptions.ZAndCustomAngle))
-    //    {
-    //        result.ContourPrintXRotation = line.Direction.AngleTo(XYZ.BasisX);
-    //        result.ContourPrintYRotation = 0;
-    //        result.ContourPrintZRotation = line.Direction.AngleTo(XYZ.BasisZ);
-
-    //        lineContour = OriginZAlignedContour(line, linePerpendicularDirection, displacement, _dto.VerticalContourHeight);
-    //    }
-    //    else
-    //    {
-    //        result.ContourPrintZRotation = line.Direction.AngleTo(XYZ.BasisX);
-    //        result.ContourPrintXRotation = 0;
-    //        result.ContourPrintYRotation = 0;
-
-    //        lineContour = OriginXYAlignedContour(line, linePerpendicularDirection, displacement);
-    //    }
-
-    //    if (lineContour is null) throw new ArgumentNullException(nameof(lineContour));
-
-    //    result.ContourLines = lineContour;
-
-    //    _dto.PieceContour = result;
-    //}
-
     public void GenerateCurveLoopsFromOrderedOffsetLines(List<string> _telemetry)
     {
         var result = new PieceContour
@@ -89,7 +43,6 @@ MultistepObservableAction<DFMA_GeneratePieceFromLineArgs, DFMA_GeneratePieceFrom
         };
 
         var line = _dto.InputLine;
-        result.RotationPoint = line.GetEndPoint(0);
         var displacement = _dto.ContourLinesPerpendicularDisplacement;
         List<Line> lineContour = new List<Line>();
 
@@ -103,24 +56,16 @@ MultistepObservableAction<DFMA_GeneratePieceFromLineArgs, DFMA_GeneratePieceFrom
 
         if (result.ContourWorkplaneAlignmentOption.Equals(ContourWorkplaneAlignmentOptions.ZAndCustomAngle))
         {
-            // 1. Spin it to align perfectly with the X-axis (undo the heading)
             result.ContourPrintZRotation = -headingAngle;
-
-            // 2. Knock it over exactly 90 degrees to lay it flat on the floor
             result.ContourPrintXRotation = Math.PI / 2;
-
-            // 3. No Y rotation needed
             result.ContourPrintYRotation = 0;
 
             lineContour = OriginZAlignedContour(line, linePerpendicularDirection, displacement, _dto.VerticalContourHeight);
         }
         else
         {
-            // Horizontal pieces (XY) are already flat. 
             result.ContourPrintXRotation = 0;
             result.ContourPrintYRotation = 0;
-
-            // We just spin them to align with the X-axis so they pack neatly on the printing bed
             result.ContourPrintZRotation = -headingAngle;
 
             lineContour = OriginXYAlignedContour(line, linePerpendicularDirection, displacement);
@@ -129,6 +74,39 @@ MultistepObservableAction<DFMA_GeneratePieceFromLineArgs, DFMA_GeneratePieceFrom
         if (lineContour is null) throw new ArgumentNullException(nameof(lineContour));
 
         result.ContourLines = lineContour;
+
+        // =========================================================================
+        // TRUE BOUNDING BOX ANCHOR CALCULATION
+        // =========================================================================
+        Transform rotX = Transform.CreateRotation(XYZ.BasisX, result.ContourPrintXRotation);
+        Transform rotY = Transform.CreateRotation(XYZ.BasisY, result.ContourPrintYRotation);
+        Transform rotZ = Transform.CreateRotation(XYZ.BasisZ, result.ContourPrintZRotation);
+
+        Transform rotationTransform = rotX.Multiply(rotY).Multiply(rotZ);
+
+        double minX = double.MaxValue, minY = double.MaxValue, minZ = double.MaxValue;
+
+        // Simulate the flattening to find the absolute minimum corner
+        foreach (var edge in lineContour)
+        {
+            for (int i = 0; i <= 1; i++)
+            {
+                XYZ pt = edge.GetEndPoint(i);
+                XYZ rotatedPt = rotationTransform.OfPoint(pt);
+
+                if (rotatedPt.X < minX) minX = rotatedPt.X;
+                if (rotatedPt.Y < minY) minY = rotatedPt.Y;
+                if (rotatedPt.Z < minZ) minZ = rotatedPt.Z;
+            }
+        }
+
+        // Map the flattened minimum corner back to the original 3D space
+        XYZ flattenedMin = new XYZ(minX, minY, minZ);
+        XYZ originalSpaceAnchor = rotationTransform.Inverse.OfPoint(flattenedMin);
+
+        // Set this as the ultimate translation reference!
+        result.RotationPoint = originalSpaceAnchor;
+
         _dto.PieceContour = result;
     }
 

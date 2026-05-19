@@ -1,13 +1,12 @@
 using Autodesk.Revit.DB;
-using Autodesk.Revit.UI;
 using Eobim.RevitApi.Core;
 using Eobim.RevitApi.DFMA;
-using Eobim.RevitApi.DxfExport;
 using Eobim.RevitApi.Framework;
 using Eobim.RevitApi.MultiStepActions;
-using static RevitCurveLoop;
+
 
 namespace Eobim.RevitApi.Commands;
+
 
 [Autodesk.Revit.Attributes.Transaction(Autodesk.Revit.Attributes.TransactionMode.Manual)]
 public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, GenerateMarkedFloorsDFMADto, object>
@@ -100,15 +99,11 @@ public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, 
         /* 23 */
         Add(OrderlyPlaceFaces);
         /* 24 */
-        //Add(PrepareSheetFamily);
-        ///* 25 */
-        //Add(GetPrintableAreaMetrics);
-        ///* 26 */
-        //Add(GroupPiecesByWidthAndHeight, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
-        ///* 27 */
-        //Add(TranslateGroupedPiecesByPrintableDimensionsSquares, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
-        ///* 28 */
-        //Add(GenerateSheetsForArrangedGroups);
+        Add(PrepareSheetFamily);
+        /* 25 */
+        Add(GetPrintableAreaMetrics);
+        /* 26 */
+        Add(GenerateSheetsForArrangedGroups, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
 
 
         /////////////////////////////////
@@ -753,442 +748,250 @@ public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, 
         _telemetry?.Add($"Metrics extracted: {nameof(_dto.SheetPrintableHeight)}: {_dto.SheetPrintableWidth}, {nameof(_dto.SheetPrintableWidth)}: {_dto.SheetPrintableHeight}");
     }
 
-    public void GroupPiecesByWidthAndHeight(List<string> _telemetry)
-    {
-        var scaledPrintableHeight = _dto.SheetPrintableHeight * 20;
-        var scaledPrintableWidth = _dto.SheetPrintableWidth * 20;
-        var verticalFraction = (scaledPrintableHeight / 10); // 20
-        var horizontalFraction = (scaledPrintableWidth / 10); // 20
-
-        _telemetry.Add($"Vertical Fraction: {verticalFraction}, Horizontal Fraction: {horizontalFraction}");
-
-        var piecesCount = _dto.PiecesPlacedAtStartPoint.Count;
-
-        var orderedPiecesByHeight = new List<(int verticalFractionNumber, DirectShapeDMFAData piece)>();
-
-        var verticalFractionCounter = verticalFraction;
-
-        for (int i = 0; i < piecesCount; i++)
-        {
-            var currentPiece = _dto.PiecesPlacedAtStartPoint[i];
-
-            while (currentPiece.MaxY - currentPiece.MinY > verticalFractionCounter)
-            {
-                verticalFractionCounter += verticalFraction;
-            }
-
-            orderedPiecesByHeight.Add(((int)(verticalFractionCounter / verticalFraction), currentPiece));
-
-            verticalFractionCounter = verticalFraction;
-        }
-
-        orderedPiecesByHeight = orderedPiecesByHeight.OrderByDescending(a => a.verticalFractionNumber).ToList();
-
-        var secondSortingPiecesCount = orderedPiecesByHeight.Count;
-        var horizontalFractionCounter = horizontalFraction;
-
-        var orderedPiecesByHeightAndWidth = new List<(int verticalFractionNumber, int horizontalFractionNumber, DirectShapeDMFAData piece)>();
-
-        for (int i = 0; i < secondSortingPiecesCount; i++)
-        {
-            var currentPiece = orderedPiecesByHeight[i];
-
-            while (currentPiece.piece.MaxX - currentPiece.piece.MinX > horizontalFractionCounter)
-            {
-                horizontalFractionCounter += horizontalFraction;
-            }
-
-            orderedPiecesByHeightAndWidth.Add((currentPiece.verticalFractionNumber, (int)(horizontalFractionCounter / horizontalFraction), currentPiece.piece));
-
-            horizontalFractionCounter = horizontalFraction;
-        }
-
-        orderedPiecesByHeightAndWidth = orderedPiecesByHeightAndWidth
-            .OrderByDescending(a => a.verticalFractionNumber)
-            .ThenByDescending(a => a.horizontalFractionNumber)
-            .ToList();
-
-        //foreach (var item in orderedPiecesByHeightAndWidth)
-        //{
-        //    _telemetry.Add($"Piece V-Bin: {item.verticalFractionNumber}, H-Bin: {item.horizontalFractionNumber} | Dimensions: X({item.piece.MaxX - item.piece.MinX}), Y({item.piece.MaxY - item.piece.MinY})");
-        //}
-
-        var orderedPiecesByColumnsAndRows = new List<(int rowCapacity, int columnCapacity, DirectShapeDMFAData piece)>();
-
-        foreach (var item in orderedPiecesByHeightAndWidth)
-        {
-            var itemHeight = item.piece.MaxY - item.piece.MinY;
-            var itemWidth = item.piece.MaxX - item.piece.MinX;
-
-            // CALCULATING CAPACITY: 
-            // 10 / fractionNumber calculates how many times this piece can fit into the sheet dimension.
-            var itemRowCapacity = (int)(10 / item.verticalFractionNumber);
-            var itemColumnCapacity = (int)(10 / item.horizontalFractionNumber);
-
-            // Added the actual values to the exception messages for easier debugging
-            if (itemHeight > scaledPrintableHeight)
-            {
-                throw new Exception($"Piece height ({itemHeight:F2}) exceeds sheet printable height ({scaledPrintableHeight:F2}).");
-            }
-            else if (itemWidth > scaledPrintableWidth)
-            {
-                throw new Exception($"Piece width ({itemWidth:F2}) exceeds sheet printable width ({scaledPrintableWidth:F2}).");
-            }
-            else
-            {
-                orderedPiecesByColumnsAndRows.Add((itemRowCapacity, itemColumnCapacity, item.piece));
-            }
-        }
-
-        //foreach (var item in orderedPiecesByColumnsAndRows)
-        //{
-        //    _telemetry.Add($"Piece Row Capacity: {item.rowCapacity}, Column Capacity: {item.columnCapacity} | Dimensions: X({item.piece.MaxX - item.piece.MinX:F2}), Y({item.piece.MaxY - item.piece.MinY:F2})");
-        //}
-
-        var groupedByCapacity = orderedPiecesByColumnsAndRows
-            .GroupBy(item => (item.rowCapacity, item.columnCapacity))
-            .ToList();
-
-        // 2. Initialize your final nested list
-        var finalNestedList = new List<List<DirectShapeDMFAData>>();
-
-        // 3. Populate the nested list and log the results
-        foreach (var group in groupedByCapacity)
-        {
-            // Extract just the pieces from this specific group into a List
-            var piecesInGroup = group.Select(g => g.piece).ToList();
-
-            // Add that list of pieces to the parent list
-            finalNestedList.Add(piecesInGroup);
-
-            // Log the group details
-            _telemetry.Add($"Created Group [Row Cap: {group.Key.rowCapacity}, Col Cap: {group.Key.columnCapacity}] containing {piecesInGroup.Count} pieces.");
-        }
-
-        var finalSheetsList = new List<List<DirectShapeDMFAData>>();
-        int sheetCounter = 1;
-
-        // 2. Iterate through each size category
-        foreach (var group in groupedByCapacity)
-        {
-            var rowCap = group.Key.rowCapacity;
-            var colCap = group.Key.columnCapacity;
-
-            // The maximum number of pieces of this size that can fit on a single sheet
-            var maxPiecesPerSheet = rowCap * colCap;
-
-            var currentSheet = new List<DirectShapeDMFAData>();
-
-            foreach (var item in group)
-            {
-                currentSheet.Add(item.piece);
-
-                // If the current sheet reaches its maximum capacity, "print" it and start a new one
-                if (currentSheet.Count == maxPiecesPerSheet)
-                {
-                    finalSheetsList.Add(currentSheet);
-                    _telemetry.Add($"Sheet {sheetCounter:D3} [FULL]: Contains {currentSheet.Count}/{maxPiecesPerSheet} pieces | Grid: {colCap}x{rowCap}");
-
-                    sheetCounter++;
-                    currentSheet = new List<DirectShapeDMFAData>(); // Reset for the next batch
-                }
-            }
-
-            // After looping through all pieces in this category, we might have a partially filled sheet left over
-            if (currentSheet.Count > 0)
-            {
-                finalSheetsList.Add(currentSheet);
-                _telemetry.Add($"Sheet {sheetCounter:D3} [PARTIAL]: Contains {currentSheet.Count}/{maxPiecesPerSheet} pieces | Grid: {colCap}x{rowCap}");
-
-                sheetCounter++;
-            }
-        }
-
-        // Optional: Assign finalSheetsList to your DTO to pass it back to the main executor
-        _dto.ArrangedSheets = finalSheetsList;
-    }
-
-    public void TranslateGroupedPiecesByPrintableDimensionsSquares(List<string> _telemetry)
-    {
-        // Using unscaled printable dimensions to ensure the physical elements 
-        // fit exactly 1:1 as they will on the fabrication bed.
-        var printableHeight = _dto.SheetPrintableHeight;
-        var printableWidth = _dto.SheetPrintableWidth;
-
-        // Define a gap between sheets so they don't overlap in the model space (e.g., 20% of sheet width)
-        var sheetSpacingMargin = printableWidth * 0.2;
-
-        int sheetIndex = 0;
-
-        foreach (var sheet in _dto.ArrangedSheets)
-        {
-            if (sheet.Count == 0) continue;
-
-            // Recalculate capacities based on the first piece of this specific sheet group
-            var samplePiece = sheet.First();
-
-            var verticalFraction = printableHeight / 10.0;
-            var horizontalFraction = printableWidth / 10.0;
-
-            int vBin = (int)Math.Ceiling((samplePiece.MaxY - samplePiece.MinY) / verticalFraction);
-            int hBin = (int)Math.Ceiling((samplePiece.MaxX - samplePiece.MinX) / horizontalFraction);
-
-            vBin = vBin > 0 ? vBin : 1;
-            hBin = hBin > 0 ? hBin : 1;
-
-            int colCapacity = Math.Max(1, 10 / hBin);
-            int rowCapacity = Math.Max(1, 10 / vBin);
-
-            double cellWidth = printableWidth / colCapacity;
-            double cellHeight = printableHeight / rowCapacity;
-
-            // Define the bottom-left origin point for this specific sheet layout in the model
-            double currentSheetOriginX = sheetIndex * (printableWidth + sheetSpacingMargin);
-            double currentSheetOriginY = 0;
-
-            _telemetry.Add($"--- Laying out Sheet {sheetIndex + 1} ({sheet.Count} pieces) | Grid: {colCapacity}x{rowCapacity} ---");
-
-            for (int i = 0; i < sheet.Count; i++)
-            {
-                var piece = sheet[i];
-
-                int colIndex = i % colCapacity;
-                int rowIndex = i / colCapacity;
-
-                double targetX = currentSheetOriginX + (colIndex * cellWidth);
-                double targetY = currentSheetOriginY + (rowIndex * cellHeight);
-
-                piece.RequiredXDisplacement = targetX - piece.MinX;
-                piece.RequiredYDisplacement = targetY - piece.MinY;
-                piece.RequiredZDisplacement = 0;
-
-                piece.PlacementPoint = new XYZ(targetX, targetY, 0);
-
-                // PHYSICALLY MOVE THE ELEMENT IN REVIT
-                XYZ translationVector = new XYZ(piece.RequiredXDisplacement, piece.RequiredYDisplacement, piece.RequiredZDisplacement);
-                ElementTransformUtils.MoveElement(_doc, piece.DirectShape.Id, translationVector);
-
-                piece.MinX += piece.RequiredXDisplacement;
-                piece.MaxX += piece.RequiredXDisplacement;
-                piece.MinY += piece.RequiredYDisplacement;
-                piece.MaxY += piece.RequiredYDisplacement;
-            }
-
-            sheetIndex++;
-        }
-    }
-
-    public void GenerateSheetsForEachPiece(List<string> _telemetry)
-    {
-        // Assuming your DTO holds the active document. 
-        // If it is stored elsewhere in your class, adjust this reference.
-        Document doc = _doc;
-
-        // 1. Calculate the exact center of the printable area.
-        // Assuming the Title Block's origin (0,0) is at the bottom-left corner.
-        double sheetCenterX = _dto.SheetHorizontalMargin + (_dto.SheetPrintableWidth / 2.0);
-        double sheetCenterY = _dto.SheetVerticalMargin + (_dto.SheetPrintableHeight / 2.0);
-        XYZ sheetPlacementPoint = new XYZ(sheetCenterX, sheetCenterY, 0);
-
-        // 2. Retrieve the ViewFamilyType for 3D views to generate the fabrication views
-        ViewFamilyType view3DType = new FilteredElementCollector(doc)
-            .OfClass(typeof(ViewFamilyType))
-            .Cast<ViewFamilyType>()
-            .FirstOrDefault(vft => vft.ViewFamily == ViewFamily.ThreeDimensional);
-
-        if (view3DType == null)
-        {
-            _telemetry.Add("Error: Could not find a 3D ViewFamilyType in the document.");
-            return;
-        }
-
-        // 3. Batch the creation process inside a single transaction for performance
-        using (Transaction trans = new Transaction(doc, "Generate DFMA Fabrication Sheets"))
-        {
-            trans.Start();
-
-            int sheetCount = 0;
-
-            foreach (var item in _dto.PiecesPlacedAtStartPoint)
-            {
-                if (item.DirectShape == null) continue;
-
-                // Create the Sheet
-                ViewSheet sheet = ViewSheet.Create(doc, _dto.SheetFamilySymbol.Id);
-                sheet.Name = $"DFMA Piece {item.DirectShape.Id}";
-                sheet.SheetNumber = $"FAB-{sheetCount + 1:D3}";
-
-                // Create a new 3D view for this specific piece
-                View3D view = View3D.CreateIsometric(doc, view3DType.Id);
-
-                // Set the required 1:20 scale
-                view.Scale = 20;
-
-                // Orient the view Top-Down (Orthographic) so the flat cardboard pieces are perfectly planar
-                ViewOrientation3D topOrientation = new ViewOrientation3D(
-                    XYZ.BasisZ,             // Eye position
-                    XYZ.BasisY,             // Up direction
-                    XYZ.BasisZ.Negate()     // Forward direction (looking straight down)
-                );
-                view.SetOrientation(topOrientation);
-
-                // Isolate the element to prevent the rest of the model from showing up on the fabrication sheet
-                view.IsolateElementTemporary(item.DirectShape.Id);
-
-                // Configure the crop box around the piece's bounding box
-                BoundingBoxXYZ bbox = item.DirectShape.get_BoundingBox(view);
-                if (bbox != null)
-                {
-                    // Add a slight padding (e.g., 0.5 feet) so the crop box isn't touching the edge of the geometry
-                    double padding = 0.5;
-                    bbox.Min -= new XYZ(padding, padding, padding);
-                    bbox.Max += new XYZ(padding, padding, padding);
-
-                    view.CropBox = bbox;
-                    view.CropBoxActive = true;
-                    view.CropBoxVisible = false; // Hides the crop boundary lines on the sheet
-                }
-
-                // Place the Viewport centered in the calculated printable area
-                if (Viewport.CanAddViewToSheet(doc, sheet.Id, view.Id))
-                {
-                    Viewport.Create(doc, sheet.Id, view.Id, sheetPlacementPoint);
-                    sheetCount++;
-                }
-                else
-                {
-                    _telemetry.Add($"Warning: Could not add view to {sheet.SheetNumber}.");
-                }
-            }
-
-            trans.Commit();
-            _telemetry.Add($"Successfully generated and placed {sheetCount} DFMA fabrication sheets.");
-        }
-    }
-
     public void GenerateSheetsForArrangedGroups(List<string> _telemetry)
     {
-        Document doc = _doc;
-
-        // 1. Calculate the exact center of the printable area.
-        double sheetCenterX = _dto.SheetHorizontalMargin + (_dto.SheetPrintableWidth / 2.0);
-        double sheetCenterY = _dto.SheetVerticalMargin + (_dto.SheetPrintableHeight / 2.0);
-        XYZ sheetPlacementPoint = new XYZ(sheetCenterX, sheetCenterY, 0);
-
-        // 2. Retrieve the ViewFamilyType for 3D views
-        ViewFamilyType view3DType = new FilteredElementCollector(doc)
-            .OfClass(typeof(ViewFamilyType))
-            .Cast<ViewFamilyType>()
-            .FirstOrDefault(vft => vft.ViewFamily == ViewFamily.ThreeDimensional);
-
-        if (view3DType == null)
+        if (_dto.PiecesPlacedAtStartPoint == null || !_dto.PiecesPlacedAtStartPoint.Any())
         {
-            _telemetry.Add("Error: Could not find a 3D ViewFamilyType in the document.");
+            _telemetry.Add("No pieces available from the layout step to pack into sheets.");
             return;
         }
 
-        using (Transaction trans = new Transaction(doc, "Generate DFMA Fabrication Sheets"))
+        if (_dto.SheetFamilySymbol != null && !_dto.SheetFamilySymbol.IsActive)
         {
-            trans.Start();
+            _dto.SheetFamilySymbol.Activate();
+        }
 
-            int sheetCount = 0;
+        // Apply SCALE factor to the printable area metrics so the physical geometry fits
+        double widthLimit = _dto.SheetPrintableWidth > 0 ? _dto.SheetPrintableWidth * SCALE : 35.0 * SCALE;
+        double heightLimit = _dto.SheetPrintableHeight > 0 ? _dto.SheetPrintableHeight * SCALE : 25.0 * SCALE;
 
-            // Iterate over the pre-arranged layout grids instead of individual pieces
-            foreach (var pieceGroup in _dto.ArrangedSheets)
+        // Define proportional, tightly packed layout gaps
+        double itemGap = 1.0; // 1 foot between pieces (adjust to your preference)
+        double sheetGap = widthLimit * 0.05; // Gap between sheets is just 5% of the sheet's total width
+        if (sheetGap < 5.0) sheetGap = 5.0;  // Fallback to ensure they never touch
+
+        // Shift origin so sheets don't crash into the original model or initial placement location
+        double currentSheetX = 0.0;
+        double currentSheetY = 100.0;
+
+        double cursorX = currentSheetX;
+        double cursorY = currentSheetY;
+        double currentRowMaxHeight = 0.0;
+        int sheetCount = 0;
+
+        // Helper action to place the visual border of the sheet behind the geometry
+        Action placeSheetGeometry = () =>
+        {
+            if (_dto.SheetFamilySymbol != null)
             {
-                if (pieceGroup.Count == 0) continue;
+                _doc.Create.NewFamilyInstance(new XYZ(currentSheetX, currentSheetY, 0), _dto.SheetFamilySymbol, Autodesk.Revit.DB.Structure.StructuralType.NonStructural);
+            }
+            sheetCount++;
+            _telemetry.Add($"Generated Sheet Boundary {sheetCount} at X={currentSheetX:F2}, Y={currentSheetY:F2}");
+        };
 
-                // Extract all DirectShape ElementIds for this specific layout group
-                List<ElementId> groupIds = pieceGroup
-                    .Where(p => p.DirectShape != null)
-                    .Select(p => p.DirectShape.Id)
-                    .ToList();
+        // Initialize the first sheet
+        placeSheetGeometry();
 
-                if (groupIds.Count == 0) continue;
+        // Pack the perfectly placed pieces from Action 23 into the scaled sheets
+        foreach (var item in _dto.PiecesPlacedAtStartPoint)
+        {
+            var ds = item.DirectShape;
+            if (ds == null) continue;
 
-                // Create the Sheet
-                ViewSheet sheet = ViewSheet.Create(doc, _dto.SheetFamilySymbol.Id);
-                sheet.Name = $"DFMA Cut File - Bed {sheetCount + 1}";
-                sheet.SheetNumber = $"FAB-{sheetCount + 1:D3}";
+            // Extract exact geometric footprint in its CURRENT infinite-row position
+            GetTightBoundsFromElement(ds, out double minX, out double maxX, out double minY, out double maxY, out double minZ, out double maxZ);
 
-                // Create the View
-                View3D view = View3D.CreateIsometric(doc, view3DType.Id);
-                view.Scale = 20;
-
-                ViewOrientation3D topOrientation = new ViewOrientation3D(
-                    XYZ.BasisZ,
-                    XYZ.BasisY,
-                    XYZ.BasisZ.Negate()
-                );
-                view.SetOrientation(topOrientation);
-
-                // Isolate ALL pieces belonging to this specific sheet group
-                view.IsolateElementsTemporary(groupIds);
-
-                // Calculate the combined bounding box for the entire arranged grid
-                BoundingBoxXYZ combinedBBox = GetCombinedBoundingBox(pieceGroup, view);
-
-                if (combinedBBox != null)
+            if (minX == double.MaxValue)
+            {
+                // Fallback to Revit bounding box if triangulation fails on this particular DirectShape
+                var bbox = ds.get_BoundingBox(null);
+                if (bbox != null)
                 {
-                    double padding = 0.5;
-                    combinedBBox.Min -= new XYZ(padding, padding, padding);
-                    combinedBBox.Max += new XYZ(padding, padding, padding);
-
-                    view.CropBox = combinedBBox;
-                    view.CropBoxActive = true;
-                    view.CropBoxVisible = false;
-                }
-
-                if (Viewport.CanAddViewToSheet(doc, sheet.Id, view.Id))
-                {
-                    Viewport.Create(doc, sheet.Id, view.Id, sheetPlacementPoint);
-                    sheetCount++;
+                    minX = bbox.Min.X; maxX = bbox.Max.X;
+                    minY = bbox.Min.Y; maxY = bbox.Max.Y;
+                    minZ = bbox.Min.Z; maxZ = bbox.Max.Z;
                 }
                 else
                 {
-                    _telemetry.Add($"Warning: Could not add view to {sheet.SheetNumber}.");
+                    _telemetry.Add($"  -> SKIPPED {ds.Name}: No computable bounds.");
+                    continue;
                 }
             }
 
-            trans.Commit();
-            _telemetry.Add($"Successfully generated and placed {sheetCount} grouped DFMA fabrication sheets.");
+            double pieceWidth = maxX - minX;
+            double pieceHeight = maxY - minY;
+
+            // 1. CHECK ROW WIDTH: Wrap to the next line on the same sheet if width is exceeded
+            // (We ensure cursorX > currentSheetX so if a piece is wider than the sheet, it still places it instead of infinite looping)
+            if (cursorX + pieceWidth > currentSheetX + widthLimit && cursorX > currentSheetX)
+            {
+                cursorX = currentSheetX;
+                cursorY += currentRowMaxHeight + itemGap;
+                currentRowMaxHeight = 0.0;
+            }
+
+            // 2. CHECK SHEET HEIGHT: Start a brand new sheet to the right if height is exceeded
+            if (cursorY + pieceHeight > currentSheetY + heightLimit && cursorY > currentSheetY)
+            {
+                currentSheetX += widthLimit + sheetGap; // Move entire sheet to the right
+                cursorX = currentSheetX;
+                cursorY = currentSheetY; // Reset to bottom of the new sheet
+                currentRowMaxHeight = 0.0;
+
+                placeSheetGeometry();
+            }
+
+            // Physically move the element from its infinite-row location to its packed sheet location
+            XYZ translationVector = new XYZ(cursorX - minX, cursorY - minY, 0);
+            ElementTransformUtils.MoveElement(_doc, ds.Id, translationVector);
+
+            currentRowMaxHeight = Math.Max(currentRowMaxHeight, pieceHeight);
+            cursorX += pieceWidth + itemGap;
         }
+
+        _telemetry.Add($"Successfully packed {_dto.PiecesPlacedAtStartPoint.Count} pieces into {sheetCount} sheets.");
     }
 
-    /// <summary>
-    /// Calculates a single overarching BoundingBoxXYZ for a grouped list of elements.
-    /// </summary>
-    private BoundingBoxXYZ GetCombinedBoundingBox(List<DirectShapeDMFAData> pieceGroup, View view)
+    //public void GenerateSheetsForArrangedGroups(List<string> _telemetry)
+    //{
+    //    if (_dto.PiecesPlacedAtStartPoint == null || !_dto.PiecesPlacedAtStartPoint.Any())
+    //    {
+    //        _telemetry.Add("No pieces available from the layout step to pack into sheets.");
+    //        return;
+    //    }
+
+    //    if (_dto.SheetFamilySymbol != null && !_dto.SheetFamilySymbol.IsActive)
+    //    {
+    //        _dto.SheetFamilySymbol.Activate();
+    //    }
+
+    //    // Apply SCALE factor to the printable area metrics so the physical geometry fits
+    //    double widthLimit = _dto.SheetPrintableWidth > 0 ? _dto.SheetPrintableWidth * SCALE : 35.0 * SCALE;
+    //    double heightLimit = _dto.SheetPrintableHeight > 0 ? _dto.SheetPrintableHeight * SCALE : 25.0 * SCALE;
+
+    //    // Define layout gaps
+    //    double itemGap = 2.0 / 12.0; // Standard layout gap between pieces
+    //    double sheetGap = 10.0 * SCALE; // Distance between adjacent sheets
+
+    //    // Shift origin so sheets don't crash into the original model or initial placement location
+    //    double currentSheetX = 0.0;
+    //    double currentSheetY = 100.0;
+
+    //    double cursorX = currentSheetX;
+    //    double cursorY = currentSheetY;
+    //    double currentRowMaxHeight = 0.0;
+    //    int sheetCount = 0;
+
+    //    // Helper action to place the visual border of the sheet behind the geometry
+    //    Action placeSheetGeometry = () =>
+    //    {
+    //        if (_dto.SheetFamilySymbol != null)
+    //        {
+    //            _doc.Create.NewFamilyInstance(new XYZ(currentSheetX, currentSheetY, 0), _dto.SheetFamilySymbol, Autodesk.Revit.DB.Structure.StructuralType.NonStructural);
+    //        }
+    //        sheetCount++;
+    //        _telemetry.Add($"Generated Sheet Boundary {sheetCount} at X={currentSheetX:F2}, Y={currentSheetY:F2}");
+    //    };
+
+    //    // Initialize the first sheet
+    //    placeSheetGeometry();
+
+    //    // Pack the perfectly placed pieces from Action 23 into the scaled sheets
+    //    foreach (var item in _dto.PiecesPlacedAtStartPoint)
+    //    {
+    //        var ds = item.DirectShape;
+    //        if (ds == null) continue;
+
+    //        // Extract exact geometric footprint in its CURRENT infinite-row position
+    //        GetTightBoundsFromElement(ds, out double minX, out double maxX, out double minY, out double maxY, out double minZ, out double maxZ);
+
+    //        if (minX == double.MaxValue)
+    //        {
+    //            // Fallback to Revit bounding box if triangulation fails on this particular DirectShape
+    //            var bbox = ds.get_BoundingBox(null);
+    //            if (bbox != null)
+    //            {
+    //                minX = bbox.Min.X; maxX = bbox.Max.X;
+    //                minY = bbox.Min.Y; maxY = bbox.Max.Y;
+    //                minZ = bbox.Min.Z; maxZ = bbox.Max.Z;
+    //            }
+    //            else
+    //            {
+    //                _telemetry.Add($"  -> SKIPPED {ds.Name}: No computable bounds.");
+    //                continue;
+    //            }
+    //        }
+
+    //        double pieceWidth = maxX - minX;
+    //        double pieceHeight = maxY - minY;
+
+    //        // 1. CHECK ROW WIDTH: Wrap to the next line on the same sheet if width is exceeded
+    //        if (cursorX + pieceWidth > currentSheetX + widthLimit && cursorX > currentSheetX)
+    //        {
+    //            cursorX = currentSheetX;
+    //            cursorY += currentRowMaxHeight + itemGap;
+    //            currentRowMaxHeight = 0.0;
+    //        }
+
+    //        // 2. CHECK SHEET HEIGHT: Start a brand new sheet to the right if height is exceeded
+    //        if (cursorY + pieceHeight > currentSheetY + heightLimit && cursorY > currentSheetY)
+    //        {
+    //            currentSheetX += widthLimit + sheetGap;
+    //            cursorX = currentSheetX;
+    //            cursorY = currentSheetY; // Reset to bottom of the new sheet
+    //            currentRowMaxHeight = 0.0;
+
+    //            placeSheetGeometry();
+    //        }
+
+    //        // Physically move the element from its infinite-row location to its packed sheet location
+    //        // We only need to translate X and Y, since Z was perfectly flattened in the previous step
+    //        XYZ translationVector = new XYZ(cursorX - minX, cursorY - minY, 0);
+    //        ElementTransformUtils.MoveElement(_doc, ds.Id, translationVector);
+
+    //        _telemetry.Add($"Moved {ds.Name} | W: {pieceWidth:F2}, H: {pieceHeight:F2} | To Sheet X:{currentSheetX:F2}, Cursor Y:{cursorY:F2}");
+
+    //        currentRowMaxHeight = Math.Max(currentRowMaxHeight, pieceHeight);
+    //        cursorX += pieceWidth + itemGap;
+    //    }
+
+    //    _telemetry.Add($"Successfully packed {_dto.PiecesPlacedAtStartPoint.Count} pieces into {sheetCount} sheets.");
+    //}
+
+    // Helper method tightly bound to the main workflow to extract actual vertices from the solid geometry
+    private void GetTightBoundsFromElement(DirectShape ds, out double bMinX, out double bMaxX, out double bMinY, out double bMaxY, out double bMinZ, out double bMaxZ)
     {
-        double minX = double.MaxValue, minY = double.MaxValue, minZ = double.MaxValue;
-        double maxX = double.MinValue, maxY = double.MinValue, maxZ = double.MinValue;
-        bool found = false;
+        bMinX = double.MaxValue; bMaxX = double.MinValue;
+        bMinY = double.MaxValue; bMaxY = double.MinValue;
+        bMinZ = double.MaxValue; bMaxZ = double.MinValue;
 
-        foreach (var piece in pieceGroup)
+        Options opt = new Options();
+        GeometryElement geomElem = ds.get_Geometry(opt);
+        if (geomElem != null)
         {
-            if (piece.DirectShape == null) continue;
-
-            BoundingBoxXYZ bbox = piece.DirectShape.get_BoundingBox(view);
-            if (bbox != null)
+            foreach (GeometryObject geomObj in geomElem)
             {
-                found = true;
-                minX = Math.Min(minX, bbox.Min.X);
-                minY = Math.Min(minY, bbox.Min.Y);
-                minZ = Math.Min(minZ, bbox.Min.Z);
+                if (geomObj is Solid solid && solid.Faces.Size > 0)
+                {
+                    foreach (Face face in solid.Faces)
+                    {
+                        Mesh mesh = face.Triangulate();
+                        if (mesh == null) continue;
 
-                maxX = Math.Max(maxX, bbox.Max.X);
-                maxY = Math.Max(maxY, bbox.Max.Y);
-                maxZ = Math.Max(maxZ, bbox.Max.Z);
+                        foreach (XYZ vertex in mesh.Vertices)
+                        {
+                            if (vertex.X < bMinX) bMinX = vertex.X;
+                            if (vertex.X > bMaxX) bMaxX = vertex.X;
+                            if (vertex.Y < bMinY) bMinY = vertex.Y;
+                            if (vertex.Y > bMaxY) bMaxY = vertex.Y;
+                            if (vertex.Z < bMinZ) bMinZ = vertex.Z;
+                            if (vertex.Z > bMaxZ) bMaxZ = vertex.Z;
+                        }
+                    }
+                }
             }
         }
-
-        if (!found) return null;
-
-        return new BoundingBoxXYZ
-        {
-            Min = new XYZ(minX, minY, minZ),
-            Max = new XYZ(maxX, maxY, maxZ)
-        };
     }
 
 

@@ -24,7 +24,7 @@ public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, 
 
     // --- SCALING & THICKNESS MATH FIXED ---
     private const double SCALE = 20.0;
-    private const double ORIGINAL_THICKNESS = 0.00175; // 1.5mm in meters
+    private const double ORIGINAL_THICKNESS = 0.002;
 
     // 1. Literal real-world thickness (1.5mm) converted to Revit internal units (Feet)
     private readonly double CONVERTED_THICKNESS = UnitUtils.ConvertToInternalUnits(ORIGINAL_THICKNESS, UnitTypeId.Meters);
@@ -34,8 +34,8 @@ public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, 
     private readonly double CARDBOARD_THICKNESS = UnitUtils.ConvertToInternalUnits(ORIGINAL_THICKNESS * SCALE, UnitTypeId.Meters);
 
     // 3. Spacing derived accurately from the scaled thickness
-    private readonly double INTERNAL_SUPPORTS_SEPARATION_1 = UnitUtils.ConvertToInternalUnits((ORIGINAL_THICKNESS * SCALE) * (SCALE * 1), UnitTypeId.Meters);
-    private readonly double INTERNAL_SUPPORTS_SEPARATION_2 = UnitUtils.ConvertToInternalUnits((ORIGINAL_THICKNESS * SCALE) * (SCALE * 2), UnitTypeId.Meters);
+    private readonly double INTERNAL_SUPPORTS_SEPARATION_1 = UnitUtils.ConvertToInternalUnits((ORIGINAL_THICKNESS * SCALE) * (SCALE * .75), UnitTypeId.Meters);
+    private readonly double INTERNAL_SUPPORTS_SEPARATION_2 = UnitUtils.ConvertToInternalUnits((ORIGINAL_THICKNESS * SCALE) * (SCALE * 1.5), UnitTypeId.Meters);
 
     // --- FAMILY CONSTANTS & EXPORT PATHS ---
     private readonly string CARDBOARD_FAMILY_PATH = @"C:\Users\eduar\Desktop\Room_003\Revit2027\Carboard_Segment_001_adaptative.rfa";

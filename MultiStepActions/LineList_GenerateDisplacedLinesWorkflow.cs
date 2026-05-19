@@ -1,17 +1,19 @@
 ﻿using Autodesk.Revit.DB;
-using Autodesk.Revit.UI;
 using Eobim.RevitApi.Framework;
-namespace Eobim.RevitApi;
+
+namespace Eobim.RevitApi.MultiStepActions;
+
+public record LineList_GenerateDisplacedLinesWorkflowArgs(List<Line> InputLineList, double DisplacementThickness, double DisplacementValue);
 
 public class LineList_GenerateDisplacedLinesWorkflow(Document doc, string parentCommandName)
 :
-MultistepObservableAction<LineList_GenerateDisplacedLinesWorkflowDto, List<Line>>(doc, parentCommandName)
+MultistepObservableAction<LineList_GenerateDisplacedLinesWorkflowArgs, LineList_GenerateDisplacedLinesWorkflowDto, List<Line>>(doc, parentCommandName)
 {
-    public override void SafelyInitializeInputs(object[] args)
+    public override void SafelyInitializeInputs(LineList_GenerateDisplacedLinesWorkflowArgs args)
     {
-        _dto.InputLineList = args[0] as List<Line>;
-        _dto.DisplacementThickness = (double)args[1];
-        _dto.DisplacementValue = _dto.DisplacementThickness * .5;
+        _dto.InputLineList = args.InputLineList;
+        _dto.DisplacementThickness = args.DisplacementThickness;
+        _dto.DisplacementValue = args.DisplacementValue;
     }
 
     protected override void SetActions()

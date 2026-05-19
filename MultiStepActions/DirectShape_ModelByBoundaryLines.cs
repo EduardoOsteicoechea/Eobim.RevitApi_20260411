@@ -4,17 +4,23 @@ using Eobim.RevitApi.Core;
 
 namespace Eobim.RevitApi.MultiStepActions;
 
-public class DirectShape_ModelPlanarByBoundaryLines(Document doc, string workflowName)
-    :
-    MultistepObservableAction<DirectShape_ModelByBoundaryLinesDto, DirectShapeDMFAData>(doc, workflowName)
+public record DirectShape_ModelPlanarByBoundaryLinesArgs(
+    List<Line> BoundaryLines,
+    XYZ ExtrusionDirection,
+    double ExtrusionThickness,
+    string DirectShapeName,
+    double HeightAdjustment = 0.0
+);
+
+public class DirectShape_ModelPlanarByBoundaryLines(Document doc, string workflowName) : MultistepObservableAction<DirectShape_ModelPlanarByBoundaryLinesArgs, DirectShape_ModelByBoundaryLinesDto, DirectShapeDMFAData>(doc, workflowName)
 {
-    public override void SafelyInitializeInputs(object[] args)
+    public override void SafelyInitializeInputs(DirectShape_ModelPlanarByBoundaryLinesArgs args)
     {
-        _dto.BoundaryLines = args[0] as List<Line>;
-        _dto.ExtrusionDirection = args[1] as XYZ;
-        _dto.ExtrusionThickness = (double)args[2];
-        _dto.DirectShapeName = args[3] as string;
-        _dto.HeightAdjustment = (double)args[4];
+        _dto.BoundaryLines = args.BoundaryLines;
+        _dto.ExtrusionDirection = args.ExtrusionDirection;
+        _dto.ExtrusionThickness = args.ExtrusionThickness;
+        _dto.DirectShapeName = args.DirectShapeName;
+        _dto.HeightAdjustment = args.HeightAdjustment;
     }
 
     protected override void SetActions()
@@ -93,6 +99,8 @@ public class DirectShape_ModelPlanarByBoundaryLines(Document doc, string workflo
 
     public void GenerateSolid(List<string> _stateTrace)
     {
+        _stateTrace.Add($"{nameof(_dto.ExtrusionDirection)}: {_dto.ExtrusionDirection}");
+
         _dto.Solid = GeometryCreationUtilities.CreateExtrusionGeometry(
                 new List<CurveLoop> { _dto.CurveLoop },
                 _dto.ExtrusionDirection,
@@ -115,7 +123,6 @@ public class DirectShape_ModelPlanarByBoundaryLines(Document doc, string workflo
     {
         var faceGeometry = _dto.DirectShape.get_Geometry(new Options { ComputeReferences = true, DetailLevel = ViewDetailLevel.Fine });
 
-        // FIXED: Added Volume filter
         var solid = faceGeometry.OfType<Solid>().FirstOrDefault(s => s.Volume > 0);
 
         var faces = solid?.Faces.Cast<Face>();
@@ -135,7 +142,6 @@ public class DirectShape_ModelPlanarByBoundaryLines(Document doc, string workflo
     {
         var faceGeometry = _dto.DirectShape.get_Geometry(new Options { ComputeReferences = true, DetailLevel = ViewDetailLevel.Fine });
 
-        // FIXED: Added Volume filter
         var solid = faceGeometry.OfType<Solid>().FirstOrDefault(s => s.Volume > 0);
 
         var faces = solid?.Faces.Cast<Face>();
@@ -143,7 +149,7 @@ public class DirectShape_ModelPlanarByBoundaryLines(Document doc, string workflo
         var result = faces?.FirstOrDefault(a =>
         {
             var faceNormal = a.ComputeNormal(new UV(.5, .5));
-            // FIXED: Look straight down at the floor
+
             return faceNormal.IsAlmostEqualTo(XYZ.BasisZ.Negate());
         });
 

@@ -5,10 +5,7 @@ using Eobim.RevitApi.Framework;
 namespace Eobim.RevitApi.MultiStepActions;
 
 
-public class RevitDFMA_ExtractFloorDataArgs
-{
-    public Floor InterestFloor { get; set; }
-}
+public record RevitDFMA_ExtractFloorDataArgs(Floor InterestFloor);
 
 
 internal class RevitDFMA_ExtractFloorData(Document doc, string workflowName)
@@ -19,8 +16,6 @@ internal class RevitDFMA_ExtractFloorData(Document doc, string workflowName)
     {
         _dto.InterestFloor = args.InterestFloor;
     }
-
-    public override void SafelyInitializeInputs(object[] args) { }
 
     protected override void SetActions()
     {

@@ -1,18 +1,18 @@
 ﻿using Autodesk.Revit.DB;
 using Eobim.RevitApi.Framework;
-using System;
-using System.Collections.Generic;
 
 namespace Eobim.RevitApi.MultiStepActions;
 
-public class Face_FromDirectShape : MultistepObservableAction<Face_FromDirectShapeDto, Face>
+public record Face_FromDirectShapeArgs(DirectShape DirectShape, string FaceToObtain);
+
+public class Face_FromDirectShape : MultistepObservableAction<Face_FromDirectShapeArgs, Face_FromDirectShapeDto, Face>
 {
     public Face_FromDirectShape(Document doc, string workflowName) : base(doc, workflowName) { }
 
-    public override void SafelyInitializeInputs(object[] args)
+    public override void SafelyInitializeInputs(Face_FromDirectShapeArgs args)
     {
-        _dto.DirectShape = args[0] as DirectShape;
-        _dto.FaceToObtain = args[1] as string;
+        _dto.DirectShape = args.DirectShape;
+        _dto.FaceToObtain = args.FaceToObtain;
     }
 
     protected override void SetActions()

@@ -50,7 +50,6 @@ public abstract class MultistepObservableAction<TArgs, Dto, TResult> : ManagedWo
 
 public interface ISubworkflow<TArgs, Dto, TResult>
 {
-    public void SafelyInitializeInputs(object[] args);
     public void SafelyInitializeInputs(TArgs args);
     public void Execute(int executedActionCounter);
     public TResult Result { get; set; }
@@ -77,23 +76,7 @@ public abstract class ManagedWorkflow<TArgs, Dto, TResult> : ISubworkflow<TArgs,
         _actions.Add((a, mustLogAction, b));
     }
 
-    public abstract void SafelyInitializeInputs(object[] args);
-
     public abstract void SafelyInitializeInputs(TArgs args);
-
-
-
-    protected UResult RunSubworkflow<TSubworkflow, TSubDto, UResult>(object[] args)
-    where TSubworkflow : ISubworkflow<TArgs, TSubDto, UResult>
-    where TSubDto : class, IDto, new()
-    {
-        Type subworkflowType = typeof(TSubworkflow);
-        var subWorkflow = (TSubworkflow)Activator.CreateInstance(subworkflowType, [_doc!, _workflowName!]);
-        subWorkflow!.SafelyInitializeInputs(args);
-        subWorkflow.Execute(_executedActionCounter);
-        if (subWorkflow.Result is null) throw new NullReferenceException($"null result in {subWorkflow.GetType().FullName}");
-        return subWorkflow.Result;
-    }
 
 
 

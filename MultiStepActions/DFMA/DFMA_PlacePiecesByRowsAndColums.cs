@@ -1,20 +1,27 @@
 ﻿using Autodesk.Revit.DB;
-using Autodesk.Revit.UI;
 using Eobim.RevitApi.Framework;
 
 namespace Eobim.RevitApi.MultiStepActions;
 
+public record DFMA_PlacePiecesByRowsAndColumsArgs(
+    List<DirectShapeDMFAData> OriginalPieces,
+    XYZ ExtrusionDirection,
+    double ExtrusionThickness,
+    double InitialX,
+    double InitialY
+);
+
 public class DFMA_PlacePiecesByRowsAndColums(Document doc, string workflowName)
     :
-MultistepObservableAction<DFMA_PlacePiecesByRowsAndColumsDto, List<DirectShapeDMFAData>>(doc, workflowName)
+MultistepObservableAction<DFMA_PlacePiecesByRowsAndColumsArgs, DFMA_PlacePiecesByRowsAndColumsDto, List<DirectShapeDMFAData>>(doc, workflowName)
 {
-    public override void SafelyInitializeInputs(object[] args)
+    public override void SafelyInitializeInputs(DFMA_PlacePiecesByRowsAndColumsArgs args)
     {
-        _dto.OriginalPieces = args[0] as List<DirectShapeDMFAData>;
-        _dto.ExtrusionDirection = args[1] as XYZ;
-        _dto.ExtrusionThickness = (double)args[2];
-        _dto.InitialX = (double)args[3];
-        _dto.InitialY = (double)args[4];
+        _dto.OriginalPieces = args.OriginalPieces;
+        _dto.ExtrusionDirection = args.ExtrusionDirection;
+        _dto.ExtrusionThickness = args.ExtrusionThickness;
+        _dto.InitialX = args.InitialX;
+        _dto.InitialY = args.InitialY;
     }
 
     protected override void SetActions()

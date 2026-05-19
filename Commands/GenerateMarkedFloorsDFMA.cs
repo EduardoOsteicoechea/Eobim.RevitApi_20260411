@@ -1,6 +1,7 @@
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using Eobim.RevitApi.Core;
+using Eobim.RevitApi.DFMA;
 using Eobim.RevitApi.DxfExport;
 using Eobim.RevitApi.Framework;
 using Eobim.RevitApi.MultiStepActions;
@@ -9,17 +10,9 @@ using static RevitCurveLoop;
 namespace Eobim.RevitApi.Commands;
 
 [Autodesk.Revit.Attributes.Transaction(Autodesk.Revit.Attributes.TransactionMode.Manual)]
-public class GenerateMarkedFloorsDFMA
-    : 
-Framework.ExternalCommand<bool, GenerateMarkedFloorsDFMADto, object>
+public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, GenerateMarkedFloorsDFMADto, object>
 {
-    protected override void OnAfterGeometryTransactionGroupBeforeFileIo()
-    {
-        if (_dto.NestedLayoutSheets is null)
-            throw new InvalidOperationException("NestedLayoutSheets must be populated before building the DXF snapshot.");
-
-        _dto.SheetsForDxfExport = DxfExportSnapshotBuilder.FromNestedLayoutSheets(_dto.NestedLayoutSheets);
-    }
+    protected override void OnAfterGeometryTransactionGroupBeforeFileIo() { }
 
     private readonly string INTEREST_FLOOR_MARK = "room_structural_bottom";
 
@@ -29,10 +22,6 @@ Framework.ExternalCommand<bool, GenerateMarkedFloorsDFMADto, object>
     private readonly double INTERNAL_SUPPORTS_SEPARATION_1 = UnitUtils.ConvertToInternalUnits(((100 / SCALE) * ORIGINAL_THICKNESS), UnitTypeId.Meters) * 50;
     private readonly double INTERNAL_SUPPORTS_SEPARATION_2 = UnitUtils.ConvertToInternalUnits(((100 / SCALE) * ORIGINAL_THICKNESS), UnitTypeId.Meters) * 100;
 
-    // --- PHYSICAL STOCK CONSTANTS (e.g., 2400mm x 1200mm standard sheet) ---
-    private readonly double MAX_CARDBOARD_WIDTH = UnitUtils.ConvertToInternalUnits((SCALE * 2.4), UnitTypeId.Meters);
-    private readonly double MAX_CARDBOARD_HEIGHT = UnitUtils.ConvertToInternalUnits((SCALE * 1.2), UnitTypeId.Meters);
-
     // --- FAMILY CONSTANTS & EXPORT PATHS ---
     private readonly string CARDBOARD_FAMILY_PATH = @"C:\Users\eduar\Desktop\Room_003\Revit2027\Carboard_Segment_001_adaptative.rfa";
     private readonly string CARDBOARD_FAMILY_NAME = "Carboard_Segment_001_adaptative";
@@ -41,13 +30,9 @@ Framework.ExternalCommand<bool, GenerateMarkedFloorsDFMADto, object>
     // --- SHEET FAMILY CONSTANTS & EXPORT PATHS ---
     private readonly string SHEET_FAMILY_PATH = @"C:\Users\eduar\Desktop\Room_003\Revit2027\Letter_Sheet_001.rfa";
     private readonly string SHEET_FAMILY_NAME = "Letter_Sheet_001";
-    private readonly string SHEET_TYPE_NAME = "Type 1";
-
-    private readonly string DXF_EXPORT_DIRECTORY = @"C:\Users\eduar\Desktop\Room_003\Revit2027\DXF_Exports";
-    private readonly string PDF_EXPORT_DIRECTORY = @"C:\Users\eduar\Desktop\Room_003\Revit2027\PDF_Exports";
+    private readonly string SHEET_TYPE_NAME = "Margin_only";
 
 
-    public override void SafelyInitializeInputs(object[] args) { }
     public override void SafelyInitializeInputs(bool args) { }
 
     protected override void SetActions()
@@ -109,26 +94,21 @@ Framework.ExternalCommand<bool, GenerateMarkedFloorsDFMADto, object>
         /* 22 */
         Add(ModelBottomShapeTopFaceHorizontalSubdivisoryLines);
 
-        ///////////////////////////////////
-        ///// Final Output & Fabrication (DXF & PDF)
-        ///////////////////////////////////
+        /////////////////////////////////
+        /// Final Output & Fabrication (DXF & PDF)
+        /////////////////////////////////
         /* 23 */
         Add(OrderlyPlaceFaces);
         /* 24 */
-        Add(PrepareSheetFamily);
-        /* 25 */
-        Add(GetPrintableAreaMetrics);
-        /* 26 */
-        Add(GroupPiecesByWidthAndHeight, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
-        /* 27 */
-        Add(TranslateGroupedPiecesByPrintableDimensionsSquares, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
-
-        // ==========================================
-        // CRITICAL FIX: Use the Arranged Groups method, 
-        // and DO NOT ask the framework for a dedicated transaction.
-        // ==========================================
-        /* 28 */
-        Add(GenerateSheetsForArrangedGroups);
+        //Add(PrepareSheetFamily);
+        ///* 25 */
+        //Add(GetPrintableAreaMetrics);
+        ///* 26 */
+        //Add(GroupPiecesByWidthAndHeight, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
+        ///* 27 */
+        //Add(TranslateGroupedPiecesByPrintableDimensionsSquares, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
+        ///* 28 */
+        //Add(GenerateSheetsForArrangedGroups);
 
 
         /////////////////////////////////
@@ -136,6 +116,8 @@ Framework.ExternalCommand<bool, GenerateMarkedFloorsDFMADto, object>
         /////////////////////////////////
         Add(HideInterestFloor, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
     }
+
+
 
     public void RunPrepareFamilyWorkflow(List<string> _telemetry)
     {
@@ -145,17 +127,19 @@ Framework.ExternalCommand<bool, GenerateMarkedFloorsDFMADto, object>
             RevitFamily_EntirelySetForUssageInRevitUIDto,
             FamilySymbol
         >(
-            new RevitFamily_EntirelySetForUssageInRevitUIArgs 
-            {
-                FamilyPath = CARDBOARD_FAMILY_PATH,
-                FamilyName = CARDBOARD_FAMILY_NAME,
-                FamilyTypeName = CARDBOARD_TYPE_NAME,
-            }
+            new(
+                FamilyPath: CARDBOARD_FAMILY_PATH,
+                FamilyName: CARDBOARD_FAMILY_NAME,
+                FamilyTypeName: CARDBOARD_TYPE_NAME
+            )
         );
     }
 
+
+    /////////////////////////////////
     /////////////////////////////////
     /// Floor Data preparation
+    /////////////////////////////////
     /////////////////////////////////
     public void GetAllFloors(List<string> _telemetry)
     {
@@ -187,170 +171,184 @@ Framework.ExternalCommand<bool, GenerateMarkedFloorsDFMADto, object>
     public void GetInterestFloorDMFADataWorkflow(List<string> _telemetry)
     {
         _dto.InterestFloorDFMAData = RunSubworkflow<
+            RevitDFMA_ExtractFloorDataArgs,
             RevitDFMA_ExtractFloorData,
             RevitDFMA_ExtractFloorDataDto,
             FloorDFMAData
         >(
-            [_dto.InterestFloor]
+            new(
+                InterestFloor: _dto.InterestFloor
+            )
         );
     }
 
+
+    /////////////////////////////////
     /////////////////////////////////
     /// Bottom Face
+    /////////////////////////////////
     /////////////////////////////////
     public void ModelBottomFace(List<string> _telemetry)
     {
         _dto.BottomFaceDirectShapeDMFAData = RunSubworkflow<
+            DirectShape_ModelPlanarByBoundaryLinesArgs,
             DirectShape_ModelPlanarByBoundaryLines,
             DirectShape_ModelByBoundaryLinesDto,
             DirectShapeDMFAData
         >(
-            [
-            _dto.InterestFloorDFMAData.BottomFaceOuterCurveLoop.Select(a => a as Line).ToList()!,
-            XYZ.BasisZ.Negate(),
-            CARDBOARD_THICKNESS,
-            "BottomFace",
-            CARDBOARD_THICKNESS,
-            ]
+            new(
+                BoundaryLines: _dto.InterestFloorDFMAData.BottomFaceOuterCurveLoop.Select(a => a as Line).ToList()!,
+                ExtrusionDirection: XYZ.BasisZ.Negate(),
+                ExtrusionThickness: CARDBOARD_THICKNESS,
+                DirectShapeName: "BottomFace",
+                HeightAdjustment: CARDBOARD_THICKNESS
+            )
         );
     }
 
     public void GenerateCurveLoopInternalOffsetBoundaryWorkflow(List<string> _telemetry)
     {
         _dto.BottomFaceOuterCurveLoopInternalOffsetBoundary = RunSubworkflow<
+            CurveLoop_GenerateInnerOffsetBoundaryArgs,
             CurveLoop_GenerateInnerOffsetBoundary,
             RevitCurveLoop_GenerateInnerOffsetBoundaryDto,
             List<Line>
         >(
-            [_dto.InterestFloorDFMAData.BottomFaceOuterCurveLoop!, CARDBOARD_THICKNESS, CARDBOARD_THICKNESS, XYZ.BasisZ.Negate()]
+            new(
+                CurveLoop: _dto.InterestFloorDFMAData.BottomFaceOuterCurveLoop!,
+                Offset: CARDBOARD_THICKNESS,
+                HeightAdjustment: CARDBOARD_THICKNESS,
+                FaceDirection: XYZ.BasisZ.Negate()
+            )
         );
     }
 
     public void ModelBottomInternalFace(List<string> _telemetry)
     {
         _dto.BottomInternalFaceDirectShapeDMFAData = RunSubworkflow<
+            DirectShape_ModelPlanarByBoundaryLinesArgs,
             DirectShape_ModelPlanarByBoundaryLines,
             DirectShape_ModelByBoundaryLinesDto,
             DirectShapeDMFAData
         >(
-            [
-            _dto.BottomFaceOuterCurveLoopInternalOffsetBoundary!,
-            XYZ.BasisZ.Negate(),
-            CARDBOARD_THICKNESS,
-            "BottomInternalFace",
-            CARDBOARD_THICKNESS
-            ]
+            new(
+                BoundaryLines: _dto.BottomFaceOuterCurveLoopInternalOffsetBoundary!,
+                ExtrusionDirection: XYZ.BasisZ.Negate(),
+                ExtrusionThickness: CARDBOARD_THICKNESS,
+                DirectShapeName: "BottomInternalFace",
+                HeightAdjustment: CARDBOARD_THICKNESS
+            )
         );
     }
 
+
+    /////////////////////////////////
     /////////////////////////////////
     /// Top Face
+    /////////////////////////////////
     /////////////////////////////////
     public void ModelTopFace(List<string> _telemetry)
     {
         _dto.TopFaceDirectShapeDMFAData = RunSubworkflow<
+            DirectShape_ModelPlanarByBoundaryLinesArgs,
             DirectShape_ModelPlanarByBoundaryLines,
             DirectShape_ModelByBoundaryLinesDto,
             DirectShapeDMFAData
         >(
-            [_dto.InterestFloorDFMAData.TopFaceOuterCurveLoop.Select(a => a as Line).ToList()!, XYZ.BasisZ.Negate(), CARDBOARD_THICKNESS, "TopFace", 0.0]
+            new(
+                BoundaryLines: _dto.InterestFloorDFMAData.TopFaceOuterCurveLoop.Select(a => a as Line).ToList()!,
+                ExtrusionDirection: XYZ.BasisZ.Negate(),
+                ExtrusionThickness: CARDBOARD_THICKNESS,
+                DirectShapeName: "TopFace",
+                HeightAdjustment: 0.0
+            )
         );
     }
 
     public void GenerateCurveLoopInternalOffsetBoundaryWorkflowForTopFace(List<string> _telemetry)
     {
         _dto.TopFaceOuterCurveLoopInternalOffsetBoundary = RunSubworkflow<
+            CurveLoop_GenerateInnerOffsetBoundaryArgs,
             CurveLoop_GenerateInnerOffsetBoundary,
             RevitCurveLoop_GenerateInnerOffsetBoundaryDto,
             List<Line>
         >(
-            [_dto.InterestFloorDFMAData.TopFaceOuterCurveLoop!, CARDBOARD_THICKNESS, -CARDBOARD_THICKNESS, XYZ.BasisZ]
+            new(
+                CurveLoop: _dto.InterestFloorDFMAData.TopFaceOuterCurveLoop!,
+                Offset: CARDBOARD_THICKNESS,
+                HeightAdjustment: -CARDBOARD_THICKNESS,
+                FaceDirection: XYZ.BasisZ
+            )
         );
     }
 
     public void ModelTopInternalFace(List<string> _telemetry)
     {
         _dto.TopInternalFaceDirectShapeDMFAData = RunSubworkflow<
+            DirectShape_ModelPlanarByBoundaryLinesArgs,
             DirectShape_ModelPlanarByBoundaryLines,
             DirectShape_ModelByBoundaryLinesDto,
             DirectShapeDMFAData
         >(
-            [_dto.TopFaceOuterCurveLoopInternalOffsetBoundary!, XYZ.BasisZ.Negate(), CARDBOARD_THICKNESS, "TopInternalFace", 0.0]
+            new(
+                BoundaryLines: _dto.TopFaceOuterCurveLoopInternalOffsetBoundary!,
+                ExtrusionDirection: XYZ.BasisZ.Negate(),
+                ExtrusionThickness: CARDBOARD_THICKNESS,
+                DirectShapeName: "TopInternalFace",
+                HeightAdjustment: 0.0
+            )
         );
     }
 
+
+    /////////////////////////////////
     /////////////////////////////////
     /// Vertical External Faces
     /////////////////////////////////
-    private void GenerateBottomFaceOffsetOuterCurveLoop(List<string> telemetry)
+    /////////////////////////////////
+    public void GenerateBottomFaceOffsetOuterCurveLoop(List<string> telemetry)
     {
         _dto.BottomFaceOffsetOuterCurveLoop = RunSubworkflow<
+            CurveLoop_GenerateInnerOffsetBoundaryArgs,
             CurveLoop_GenerateInnerOffsetBoundary,
             RevitCurveLoop_GenerateInnerOffsetBoundaryDto,
             List<Line>
         >(
-            [_dto.InterestFloorDFMAData.BottomFaceOuterCurveLoop, -CARDBOARD_THICKNESS / 2, CARDBOARD_THICKNESS, XYZ.BasisZ]
+            new(
+                CurveLoop: _dto.InterestFloorDFMAData.BottomFaceOuterCurveLoop!,
+                Offset: -CARDBOARD_THICKNESS / 2,
+                HeightAdjustment: CARDBOARD_THICKNESS,
+                FaceDirection: XYZ.BasisZ
+            )
         );
     }
 
-    private void GenerateBottomFaceOuterCurveLoopDisplacedLines(List<string> telemetry)
+    public void GenerateBottomFaceOuterCurveLoopDisplacedLines(List<string> telemetry)
     {
         _dto.BottomFaceOuterCurveLoopDisplacedLines = RunSubworkflow<
+            LineList_GenerateDisplacedLinesWorkflowArgs,
             LineList_GenerateDisplacedLinesWorkflow,
             LineList_GenerateDisplacedLinesWorkflowDto,
             List<Line>
         >(
-            [_dto.BottomFaceOffsetOuterCurveLoop, CARDBOARD_THICKNESS]
+            new(
+                InputLineList: _dto.BottomFaceOffsetOuterCurveLoop,
+                DisplacementThickness: CARDBOARD_THICKNESS,
+                DisplacementValue: 0.0
+            )
         );
     }
 
-    private void GenerateBottomFaceOuterCurveLoopDisplacedLinesPiecesContoursCurveLoops(List<string> telemetry)
+    public void GenerateBottomFaceOuterCurveLoopDisplacedLinesPiecesContoursCurveLoops(List<string> _telemetry)
     {
         var pieceHeight = (_dto.InterestFloorDFMAData.TopFaceHighestPoint.Z - _dto.InterestFloorDFMAData.BottomFaceLowestPoint.Z) - CARDBOARD_THICKNESS * 2;
 
-        _dto.BottomFaceOuterCurveLoopDisplacedLinesPiecesContours = RunSubworkflow<
-            LineList_GenerateCurveLoopsFromLines,
-            LineList_GenerateCurveLoopsFromLinesDto,
-            List<(List<Line>, string)>
-        >(
-            [_dto.BottomFaceOuterCurveLoopDisplacedLines, CARDBOARD_THICKNESS, "vertical", pieceHeight]
-        //[_dto.BottomFaceOuterCurveLoopDisplacedLines, CARDBOARD_THICKNESS, "", 0.0]
-        );
-    }
-
-    private DirectShapeDMFAData ModelFromContourAndDirection
-    (
-
-        List<Line> items,
-        string orientation,
-        int pieceIndex,
-        double pieceHeight,
-        string nameBase,
-        double heightAdjustment = 0.0,
-        bool negateDirection = false
-    )
-    {
-        var extrusionDirection = XYZ.BasisZ;
-
-        if (orientation.Equals("vertical"))
-        {
-            extrusionDirection = items.FirstOrDefault()?.Direction.CrossProduct(XYZ.BasisZ) ?? XYZ.BasisZ;
-
-            if (negateDirection)
-            {
-                extrusionDirection = extrusionDirection.Negate();
-            }
-
-            pieceHeight = CARDBOARD_THICKNESS;
-        }
-
-        return RunSubworkflow<
-            DirectShape_ModelPlanarByBoundaryLines,
-            DirectShape_ModelByBoundaryLinesDto,
-            DirectShapeDMFAData
-        >(
-            [items, extrusionDirection, pieceHeight, $"{nameBase}_{pieceIndex + 1}", heightAdjustment]
-        );
+        _dto.BottomFaceOuterCurveLoopDisplacedLinesPiecesContours = GenerateDirectionSharingPieceContours(
+                _dto.BottomFaceOuterCurveLoopDisplacedLines,
+                pieceHeight,
+                ContourWorkplaneAlignmentOptions.XY,
+                _telemetry
+            );
     }
 
     public void ModelBottomFaceOuterCurveLoopDisplacedLinesPiecesContours(List<string> _telemetry)
@@ -360,19 +358,23 @@ Framework.ExternalCommand<bool, GenerateMarkedFloorsDFMADto, object>
         var pieceHeight = (_dto.InterestFloorDFMAData.TopFaceHighestPoint.Z - _dto.InterestFloorDFMAData.BottomFaceLowestPoint.Z) - CARDBOARD_THICKNESS * 2;
         var contourCount = _dto.BottomFaceOuterCurveLoopDisplacedLinesPiecesContours.Count;
 
+        _telemetry.Add($"{nameof(contourCount)}: {contourCount}");
+
         for (int i = 0; i < contourCount; i++)
         {
             var item = _dto.BottomFaceOuterCurveLoopDisplacedLinesPiecesContours[i];
 
+            _telemetry.Add($"    Contour {i + 1}");
+            _telemetry.Add($"    {item}");
+
             pieces.Add(
                 ModelFromContourAndDirection(
-                    item.Item1,
-                    item.Item2,
-                    i,
-                    pieceHeight,
-                    "BottomFaceOuterCurveLoopDisplacedLinesPiecesContour",
-                    0.0,
-                    true
+                    item,
+                    pieceIndex: i,
+                    pieceHeight: pieceHeight,
+                    nameBase: "BottomFaceOuterCurveLoopDisplacedLinesPiecesContour",
+                    heightAdjustment: 0.0,
+                    negateDirection: true
                 )
             );
         }
@@ -380,28 +382,40 @@ Framework.ExternalCommand<bool, GenerateMarkedFloorsDFMADto, object>
         _dto.ExternalVerticalFacesDirectShapeDMFADataList = pieces;
     }
 
+
     /////////////////////////////////
-    /// Shape Internal Supports generation
+    /////////////////////////////////
+    /// Floor Vertical Internal Supports generation
+    /////////////////////////////////
     /////////////////////////////////
     public void GetInternalBottomShapeTopFace(List<string> _telemetry)
     {
         _dto.InternalBottomShapeTopFace = RunSubworkflow<
+            Face_FromDirectShapeArgs,
             Face_FromDirectShape,
             Face_FromDirectShapeDto,
             Face
         >(
-            [_dto.BottomInternalFaceDirectShapeDMFAData.DirectShape, "top"]
+            new(
+                DirectShape: _dto.BottomInternalFaceDirectShapeDMFAData.DirectShape,
+                FaceToObtain: "top"
+            )
         );
     }
 
     public void GenerateBottomShapeTopFaceVerticalSubdivisoryLines(List<string> _telemetry)
     {
         _dto.BottomShapeTopFaceVerticalSubdivisoryLines = RunSubworkflow<
+            Face_SubdivideInInternalLinesArgs,
             Face_SubdivideInInternalLines,
             Face_SubdivideInInternalLinesDto,
             List<Line>
         >(
-            [_dto.InternalBottomShapeTopFace, INTERNAL_SUPPORTS_SEPARATION_1, SubdivisionAxis.Y]
+            new(
+                FaceToSubdivide: _dto.InternalBottomShapeTopFace,
+                SubdivisionSeparation: INTERNAL_SUPPORTS_SEPARATION_1,
+                SubdivisionBasis: SubdivisionAxis.X
+            )
         );
     }
 
@@ -409,14 +423,20 @@ Framework.ExternalCommand<bool, GenerateMarkedFloorsDFMADto, object>
     {
         var pieceHeight = (_dto.InterestFloorDFMAData.TopFaceHighestPoint.Z - _dto.InterestFloorDFMAData.BottomFaceLowestPoint.Z) - CARDBOARD_THICKNESS * 4;
 
-        _dto.BottomShapeTopFaceVerticalSubdivisoryLinesPiecesContours = RunSubworkflow<
-            LineList_GenerateCurveLoopsFromLines,
-            LineList_GenerateCurveLoopsFromLinesDto,
-            List<(List<Line>, string)>
-        >(
-            [_dto.BottomShapeTopFaceVerticalSubdivisoryLines, CARDBOARD_THICKNESS, "vertical", pieceHeight]
-        );
+        _dto.BottomShapeTopFaceVerticalSubdivisoryLinesPiecesContours = GenerateDirectionSharingPieceContours(
+                _dto.BottomShapeTopFaceVerticalSubdivisoryLines,
+                pieceHeight,
+                ContourWorkplaneAlignmentOptions.ZAndCustomAngle,
+                _telemetry
+            );
+
+        foreach (var item in _dto.BottomShapeTopFaceVerticalSubdivisoryLinesPiecesContours)
+        {
+            _telemetry.Add($"{item}");
+        }
     }
+
+
 
     public void ModelBottomShapeTopFaceVerticalSubdivisoryLines(List<string> _telemetry)
     {
@@ -433,11 +453,10 @@ Framework.ExternalCommand<bool, GenerateMarkedFloorsDFMADto, object>
 
             pieces.Add(
                 ModelFromContourAndDirection(
-                    item.Item1,
-                    item.Item2,
-                    i,
-                    pieceHeight,
-                    "BottomShapeTopFaceVerticalSubdivisoryLinesPiecesContour"
+                    item,
+                    pieceIndex: i,
+                    pieceHeight: pieceHeight,
+                    nameBase: "BottomShapeTopFaceVerticalSubdivisoryLinesPiecesContour"
                 )
             );
         }
@@ -445,17 +464,25 @@ Framework.ExternalCommand<bool, GenerateMarkedFloorsDFMADto, object>
         _dto.BottomShapeTopFaceVerticalSubdivisoryLinesDirectShapeDMFAData = pieces;
     }
 
+
+    /////////////////////////////////
     /////////////////////////////////
     /// Floor Horizontal Internal Supports generation
+    /////////////////////////////////
     /////////////////////////////////
     public void GenerateBottomShapeTopFaceHorizontalSubdivisoryLines(List<string> _telemetry)
     {
         _dto.BottomShapeTopFaceInitialHorizontalSubdivisoryLines = RunSubworkflow<
+            Face_SubdivideInInternalLinesArgs,
             Face_SubdivideInInternalLines,
             Face_SubdivideInInternalLinesDto,
             List<Line>
         >(
-            [_dto.InternalBottomShapeTopFace, INTERNAL_SUPPORTS_SEPARATION_2, SubdivisionAxis.X]
+            new(
+                FaceToSubdivide: _dto.InternalBottomShapeTopFace,
+                SubdivisionSeparation: INTERNAL_SUPPORTS_SEPARATION_2,
+                SubdivisionBasis: SubdivisionAxis.X
+            )
         );
     }
 
@@ -478,7 +505,7 @@ Framework.ExternalCommand<bool, GenerateMarkedFloorsDFMADto, object>
 
             // 2. Evaluate counter-clockwise against the face's own normal!
             var validLoop = item.DirectBottomFace.GetEdgesAsCurveLoops()
-                .FirstOrDefault(a => a.IsCounterclockwise(faceNormal));
+                .First(a => a.IsCounterclockwise(faceNormal));
 
             if (validLoop != null)
             {
@@ -503,11 +530,15 @@ Framework.ExternalCommand<bool, GenerateMarkedFloorsDFMADto, object>
         }
 
         _dto.BottomShapeTopFaceFinalHorizontalSubdivisoryLines = RunSubworkflow<
+            Line_SubdivideByContourIntersectionArgs,
             Line_SubdivideByContourIntersection,
             Line_SubdivideByContourIntersectionDto,
             List<Line>
         >(
-            [_dto.BottomShapeTopFaceInitialHorizontalSubdivisoryLines, verticalSupportContours]
+            new(
+                LinesToSubdivide: _dto.BottomShapeTopFaceInitialHorizontalSubdivisoryLines,
+                Contours: verticalSupportContours
+            )
         );
     }
 
@@ -515,13 +546,50 @@ Framework.ExternalCommand<bool, GenerateMarkedFloorsDFMADto, object>
     {
         var pieceHeight = (_dto.InterestFloorDFMAData.TopFaceHighestPoint.Z - _dto.InterestFloorDFMAData.BottomFaceLowestPoint.Z) - CARDBOARD_THICKNESS * 4;
 
-        _dto.BottomShapeTopFaceHorizontalSubdivisoryLinesPiecesContours = RunSubworkflow<
-            LineList_GenerateCurveLoopsFromLines,
-            LineList_GenerateCurveLoopsFromLinesDto,
-            List<(List<Line>, string)>
-        >(
-            [_dto.BottomShapeTopFaceFinalHorizontalSubdivisoryLines, CARDBOARD_THICKNESS, "vertical", pieceHeight]
-        );
+        _dto.BottomShapeTopFaceHorizontalSubdivisoryLinesPiecesContours = GenerateDirectionSharingPieceContours(
+                _dto.BottomShapeTopFaceFinalHorizontalSubdivisoryLines,
+                pieceHeight,
+                ContourWorkplaneAlignmentOptions.ZAndCustomAngle,
+                _telemetry
+            );
+
+        foreach (var item in _dto.BottomShapeTopFaceHorizontalSubdivisoryLinesPiecesContours)
+        {
+            _telemetry.Add($"{item}");
+        }
+    }
+
+    private List<PieceContour> GenerateDirectionSharingPieceContours(
+        List<Line> lines,
+        double pieceHeight,
+        ContourWorkplaneAlignmentOptions contourWorkplaneAlignmentOption,
+        List<string> _telemetry
+        )
+    {
+        var result = new List<PieceContour>();
+
+        foreach (var item in lines)
+        {
+            _telemetry.Add($"Processing line for contour generation: Start({item.GetEndPoint(0)}), End({item.GetEndPoint(1)})");
+
+            var contour = RunSubworkflow<
+                DFMA_GeneratePieceFromLineArgs,
+                DFMA_GeneratePieceFromLine,
+                DFMA_GeneratePieceFromLineDto,
+                PieceContour
+            >(
+                new(
+                    InputLine: item,
+                    ContourThickness: CARDBOARD_THICKNESS,
+                    ContourWorkplaneAlignmentOption: contourWorkplaneAlignmentOption,
+                    VerticalContourHeight: pieceHeight
+                )
+            );
+
+            result.Add(contour);
+        }
+
+        return result;
     }
 
     public void ModelBottomShapeTopFaceHorizontalSubdivisoryLines(List<string> _telemetry)
@@ -539,13 +607,12 @@ Framework.ExternalCommand<bool, GenerateMarkedFloorsDFMADto, object>
 
             pieces.Add(
                 ModelFromContourAndDirection(
-                    item.Item1,
-                    item.Item2,
-                    i,
-                    pieceHeight,
-                    "BottomShapeTopFaceHorizontalSubdivisoryLinesPiecesContour",
-                    0.0,
-                    true
+                    item,
+                    pieceIndex: i,
+                    pieceHeight: pieceHeight,
+                    nameBase: "BottomShapeTopFaceHorizontalSubdivisoryLinesPiecesContour",
+                    heightAdjustment: 0.0,
+                    negateDirection: true
                 )
             );
         }
@@ -553,40 +620,80 @@ Framework.ExternalCommand<bool, GenerateMarkedFloorsDFMADto, object>
         _dto.BottomShapeTopFaceHorizontalSubdivisoryLinesDirectShapeDMFAData = pieces;
     }
 
+    private DirectShapeDMFAData ModelFromContourAndDirection
+    (
+        PieceContour contour,
+        int pieceIndex,
+        double pieceHeight,
+        string nameBase,
+        double heightAdjustment = 0.0,
+        bool negateDirection = false
+    )
+    {
+        var extrusionDirection = contour.ContourInitialLineDirection.CrossProduct(XYZ.BasisZ);
+        var extrusionThickness = pieceHeight;
+
+        if (contour.ContourWorkplaneAlignmentOption.Equals(ContourWorkplaneAlignmentOptions.XY))
+        {
+            extrusionDirection = XYZ.BasisZ;
+        }
+        else if (contour.ContourWorkplaneAlignmentOption.Equals(ContourWorkplaneAlignmentOptions.ZAndCustomAngle))
+        {
+            extrusionThickness = CARDBOARD_THICKNESS;
+        }
+
+        if (negateDirection)
+        {
+            extrusionDirection = extrusionDirection.Negate();
+        }
+
+        return RunSubworkflow<
+            DirectShape_ModelPlanarByBoundaryLinesArgs,
+            DirectShape_ModelPlanarByBoundaryLines,
+            DirectShape_ModelByBoundaryLinesDto,
+            DirectShapeDMFAData
+        >(
+            new(
+                BoundaryLines: contour.ContourLines,
+                ExtrusionDirection: extrusionDirection,
+                ExtrusionThickness: extrusionThickness,
+                DirectShapeName: $"{nameBase}_{pieceIndex + 1}",
+                HeightAdjustment: heightAdjustment
+            )
+        );
+    }
+
+
+    /////////////////////////////////
     /////////////////////////////////
     /// Final Output & Fabrication
     /////////////////////////////////
-
+    /////////////////////////////////
     public void OrderlyPlaceFaces(List<string> _telemetry)
     {
         _dto.PiecesPlacedAtStartPoint = RunSubworkflow<
+            DFMA_PlacePiecesByRowsAndColumsArgs,
             DFMA_PlacePiecesByRowsAndColums,
             DFMA_PlacePiecesByRowsAndColumsDto,
             List<DirectShapeDMFAData>
         >(
-            [
-                new List<DirectShapeDMFAData>
-                {
-                    _dto.BottomFaceDirectShapeDMFAData,
-                    _dto.BottomInternalFaceDirectShapeDMFAData,
-                    _dto.TopFaceDirectShapeDMFAData,
-                    _dto.TopInternalFaceDirectShapeDMFAData,
-                }
-                .Concat(
-                    _dto.BottomShapeTopFaceVerticalSubdivisoryLinesDirectShapeDMFAData
-                )
-                .Concat(
-                    _dto.BottomShapeTopFaceHorizontalSubdivisoryLinesDirectShapeDMFAData
-                )
-                .Concat(
-                    _dto.ExternalVerticalFacesDirectShapeDMFADataList
-                )
-                .ToList(),
-                XYZ.BasisZ.Negate(),
-                CARDBOARD_THICKNESS,
-                -10.0, // Start X
-                -10.0, // Start Y
-            ]
+            new(
+                OriginalPieces: new List<DirectShapeDMFAData>
+                    {
+                        _dto.BottomFaceDirectShapeDMFAData,
+                        _dto.BottomInternalFaceDirectShapeDMFAData,
+                        _dto.TopFaceDirectShapeDMFAData,
+                        _dto.TopInternalFaceDirectShapeDMFAData,
+                    }
+                    .Concat(_dto.BottomShapeTopFaceVerticalSubdivisoryLinesDirectShapeDMFAData)
+                    .Concat(_dto.BottomShapeTopFaceHorizontalSubdivisoryLinesDirectShapeDMFAData)
+                    .Concat(_dto.ExternalVerticalFacesDirectShapeDMFADataList)
+                    .ToList(),
+                ExtrusionDirection: XYZ.BasisZ.Negate(),
+                ExtrusionThickness: CARDBOARD_THICKNESS,
+                InitialX: -10.0,
+                InitialY: -10.0
+            )
         );
 
         _telemetry.Add($"Total pieces placed at start point: {_dto.PiecesPlacedAtStartPoint.Count}");
@@ -595,11 +702,16 @@ Framework.ExternalCommand<bool, GenerateMarkedFloorsDFMADto, object>
     public void PrepareSheetFamily(List<string> _telemetry)
     {
         _dto.SheetFamilySymbol = RunSubworkflow<
+            RevitFamily_EntirelySetForUssageInRevitUIArgs,
             RevitFamily_EntirelySetForUssageInRevitUI,
             RevitFamily_EntirelySetForUssageInRevitUIDto,
             FamilySymbol
         >(
-            [SHEET_FAMILY_PATH, SHEET_FAMILY_NAME, SHEET_TYPE_NAME]
+            new(
+                FamilyPath: SHEET_FAMILY_PATH,
+                FamilyName: SHEET_FAMILY_NAME,
+                FamilyTypeName: SHEET_TYPE_NAME
+            )
         );
     }
 
@@ -616,7 +728,7 @@ Framework.ExternalCommand<bool, GenerateMarkedFloorsDFMADto, object>
         _dto.SheetVerticalMargin = _dto.SheetFamilySymbol.LookupParameter("SheetVerticalMargin")?.AsDouble() ?? 0.0;
         _dto.SheetHorizontalMargin = _dto.SheetFamilySymbol.LookupParameter("SheetHorizontalMargin")?.AsDouble() ?? 0.0;
 
-        _telemetry?.Add($"Metrics extracted: W:{_dto.SheetPrintableWidth}, H:{_dto.SheetPrintableHeight}");
+        _telemetry?.Add($"Metrics extracted: {nameof(_dto.SheetPrintableHeight)}: {_dto.SheetPrintableWidth}, {nameof(_dto.SheetPrintableWidth)}: {_dto.SheetPrintableHeight}");
     }
 
     public void GroupPiecesByWidthAndHeight(List<string> _telemetry)
@@ -843,102 +955,6 @@ Framework.ExternalCommand<bool, GenerateMarkedFloorsDFMADto, object>
             sheetIndex++;
         }
     }
-
-
-    //public void TranslateGroupedPiecesByPrintableDimensionsSquares(List<string> _telemetry)
-    //{
-    //    // Using unscaled printable dimensions to ensure the physical elements 
-    //    // fit exactly 1:1 as they will on the fabrication bed.
-    //    var printableHeight = _dto.SheetPrintableHeight;
-    //    var printableWidth = _dto.SheetPrintableWidth;
-
-    //    // Define a gap between sheets so they don't overlap in the model space (e.g., 20% of sheet width)
-    //    var sheetSpacingMargin = printableWidth * 0.2;
-
-    //    int sheetIndex = 0;
-
-    //    foreach (var sheet in _dto.ArrangedSheets)
-    //    {
-    //        // Skip empty sheet collections
-    //        if (sheet.Count == 0) continue;
-
-    //        // 1. Recalculate capacities based on the first piece of this specific sheet group
-    //        var samplePiece = sheet.First();
-
-    //        var verticalFraction = printableHeight / 10.0;
-    //        var horizontalFraction = printableWidth / 10.0;
-
-    //        int vBin = (int)Math.Ceiling((samplePiece.MaxY - samplePiece.MinY) / verticalFraction);
-    //        int hBin = (int)Math.Ceiling((samplePiece.MaxX - samplePiece.MinX) / horizontalFraction);
-
-    //        // Safety check to prevent divide by zero exceptions from the fraction side
-    //        vBin = vBin > 0 ? vBin : 1;
-    //        hBin = hBin > 0 ? hBin : 1;
-
-    //        // ==========================================
-    //        // CRITICAL FIX: Clamp to a minimum of 1
-    //        // ==========================================
-    //        // Prevents Modulo by Zero crash if Math.Ceiling pushes the fraction past 10.
-    //        int colCapacity = Math.Max(1, 10 / hBin);
-    //        int rowCapacity = Math.Max(1, 10 / vBin);
-
-    //        // 2. Define the Grid Cell size in the coordinate space
-    //        double cellWidth = printableWidth / colCapacity;
-    //        double cellHeight = printableHeight / rowCapacity;
-
-    //        // 3. Define the bottom-left origin point for this specific sheet
-    //        double currentSheetOriginX = sheetIndex * (printableWidth + sheetSpacingMargin);
-    //        double currentSheetOriginY = 0; // Align all sheets on the Y=0 baseline
-
-    //        _telemetry.Add($"--- Laying out Sheet {sheetIndex + 1} ({sheet.Count} pieces) | Grid: {colCapacity}x{rowCapacity} | Origin X: {currentSheetOriginX:F2} ---");
-
-    //        // 4. Place pieces into the grid
-    //        for (int i = 0; i < sheet.Count; i++)
-    //        {
-    //            var piece = sheet[i];
-
-    //            // Map the 1D list index 'i' to a 2D Grid (Column and Row)
-    //            int colIndex = i % colCapacity;
-    //            int rowIndex = i / colCapacity;
-
-    //            // Calculate the target bottom-left corner for this piece within the sheet
-    //            // X = Sheet Origin + (Column * Cell Width)
-    //            double targetX = currentSheetOriginX + (colIndex * cellWidth);
-
-    //            // Y = Sheet Origin + (Row * Cell Height)
-    //            double targetY = currentSheetOriginY + (rowIndex * cellHeight);
-
-    //            // Calculate Required Displacement. 
-    //            // Subtracting the piece's original MinX/MinY ensures its bottom-left corner 
-    //            // snaps exactly to the targetX/targetY coordinate.
-    //            piece.RequiredXDisplacement = targetX - piece.MinX;
-    //            piece.RequiredYDisplacement = targetY - piece.MinY;
-    //            piece.RequiredZDisplacement = 0; // Set all pieces to Z 0
-
-    //            // Assign the final Placement Point
-    //            piece.PlacementPoint = new XYZ(targetX, targetY, 0);
-
-    //            // ==========================================
-    //            // PHYSICALLY MOVE THE ELEMENT IN REVIT
-    //            // ==========================================
-    //            XYZ translationVector = new XYZ(piece.RequiredXDisplacement, piece.RequiredYDisplacement, piece.RequiredZDisplacement);
-
-    //            // Move the actual Revit DirectShape element to its new grid coordinate
-    //            ElementTransformUtils.MoveElement(_doc, piece.DirectShape.Id, translationVector);
-
-    //            // Update the Min/Max bounds to reflect their new real-world location 
-    //            // (Crucial for any subsequent boundary checks, tagging, or exporting)
-    //            piece.MinX += piece.RequiredXDisplacement;
-    //            piece.MaxX += piece.RequiredXDisplacement;
-    //            piece.MinY += piece.RequiredYDisplacement;
-    //            piece.MaxY += piece.RequiredYDisplacement;
-
-    //            _telemetry.Add($"Piece {i + 1} -> Grid[{rowIndex},{colIndex}] | Displaced by X:{piece.RequiredXDisplacement:F2}, Y:{piece.RequiredYDisplacement:F2}");
-    //        }
-
-    //        sheetIndex++;
-    //    }
-    //}
 
     public void GenerateSheetsForEachPiece(List<string> _telemetry)
     {
@@ -1177,7 +1193,9 @@ Framework.ExternalCommand<bool, GenerateMarkedFloorsDFMADto, object>
 
 
     /////////////////////////////////
+    /////////////////////////////////
     /// Cleanup
+    /////////////////////////////////
     /////////////////////////////////
     public void HideInterestFloor(List<string> _telemetry)
     {
@@ -1185,9 +1203,12 @@ Framework.ExternalCommand<bool, GenerateMarkedFloorsDFMADto, object>
     }
 }
 
-// -------------------------------------------------------------
+
+/////////////////////////////////
+/////////////////////////////////
 // DTO Definition
-// -------------------------------------------------------------
+/////////////////////////////////
+/////////////////////////////////
 
 public class GenerateMarkedFloorsDFMADto : Dto
 {
@@ -1205,24 +1226,19 @@ public class GenerateMarkedFloorsDFMADto : Dto
 
     public List<Line> BottomFaceOffsetOuterCurveLoop { get; set; }
     public List<Line> BottomFaceOuterCurveLoopDisplacedLines { get; set; }
-    public List<(List<Line>, string)> BottomFaceOuterCurveLoopDisplacedLinesPiecesContours { get; set; }
+    public List<PieceContour> BottomFaceOuterCurveLoopDisplacedLinesPiecesContours { get; set; }
 
 
     public List<DirectShapeDMFAData> ExternalVerticalFacesDirectShapeDMFADataList { get; set; }
 
 
-    [Print(nameof(TypeFormatter.Face))]
     public Face InternalBottomShapeTopFace { get; set; }
-
-    [Print(nameof(TypeFormatter.LineList))]
     public List<Line> BottomShapeTopFaceVerticalSubdivisoryLines { get; set; }
-    public List<(List<Line>, string)> BottomShapeTopFaceVerticalSubdivisoryLinesPiecesContours { get; set; }
+    public List<PieceContour> BottomShapeTopFaceVerticalSubdivisoryLinesPiecesContours { get; set; }
     public List<DirectShapeDMFAData> BottomShapeTopFaceVerticalSubdivisoryLinesDirectShapeDMFAData { get; set; }
-
-    [Print(nameof(TypeFormatter.LineList))]
     public List<Line> BottomShapeTopFaceInitialHorizontalSubdivisoryLines { get; set; }
     public List<Line> BottomShapeTopFaceFinalHorizontalSubdivisoryLines { get; set; }
-    public List<(List<Line>, string)> BottomShapeTopFaceHorizontalSubdivisoryLinesPiecesContours { get; set; }
+    public List<PieceContour> BottomShapeTopFaceHorizontalSubdivisoryLinesPiecesContours { get; set; }
     public List<DirectShapeDMFAData> BottomShapeTopFaceHorizontalSubdivisoryLinesDirectShapeDMFAData { get; set; }
 
 
@@ -1230,10 +1246,6 @@ public class GenerateMarkedFloorsDFMADto : Dto
 
 
 
-    public List<DFMANestedSheet> NestedLayoutSheets { get; set; }
-
-    /// <summary>Plain snapshot for DXF export after the geometry TransactionGroup has assimilated.</summary>
-    public List<DxfExportSheet> SheetsForDxfExport { get; set; }
     public FamilySymbol CommonCarboardFamilySymbol { get; set; }
 
 
@@ -1243,29 +1255,4 @@ public class GenerateMarkedFloorsDFMADto : Dto
     public double SheetPrintableWidth { get; set; }
     public double SheetHorizontalMargin { get; set; }
     public List<List<DirectShapeDMFAData>> ArrangedSheets { get; set; }
-}
-
-// -------------------------------------------------------------
-// HELPER MODELS 
-// -------------------------------------------------------------
-
-public class DFMAPiece
-{
-    public string UniqueCode { get; set; }
-    public XYZ Centroid { get; set; }
-    public List<Line> FlattenedContours { get; set; }
-
-    public double MinX { get; set; }
-    public double MaxX { get; set; }
-    public double MinY { get; set; }
-    public double MaxY { get; set; }
-
-    public double Width => MaxX - MinX;
-    public double Height => MaxY - MinY;
-}
-
-public class DFMANestedSheet
-{
-    public int SheetNumber { get; set; }
-    public List<DFMAPiece> PlacedPieces { get; set; } = new List<DFMAPiece>();
 }

@@ -3,24 +3,27 @@ using Eobim.RevitApi.Framework;
 
 namespace Eobim.RevitApi.MultiStepActions;
 
-internal class CurveLoop_GenerateInnerOffsetBoundary
-(
-    Document doc,
-    string parentCommandName
-)
-: MultistepObservableAction<RevitCurveLoop_GenerateInnerOffsetBoundaryDto, List<Line>>
+public record CurveLoop_GenerateInnerOffsetBoundaryArgs(
+    CurveLoop CurveLoop,
+    double Offset,
+    double HeightAdjustment,
+    XYZ FaceDirection
+    );
+
+internal class CurveLoop_GenerateInnerOffsetBoundary(Document doc, string parentCommandName )
+: MultistepObservableAction<CurveLoop_GenerateInnerOffsetBoundaryArgs, RevitCurveLoop_GenerateInnerOffsetBoundaryDto, List<Line>>
 (
     doc,
     parentCommandName
 )
 {
 
-    public override void SafelyInitializeInputs(object[] args)
+    public override void SafelyInitializeInputs(CurveLoop_GenerateInnerOffsetBoundaryArgs args)
     {
-        _dto.CurveLoop = args[0] as CurveLoop;
-        _dto.Offset = (double)args[1];
-        _dto.HeightAdjustment = (double)args[2];
-        _dto.FaceDirection = args[3] as XYZ;
+        _dto.CurveLoop = args.CurveLoop;
+        _dto.Offset = args.Offset;
+        _dto.HeightAdjustment = args.HeightAdjustment;
+        _dto.FaceDirection = args.FaceDirection;
     }
 
     protected override void SetActions()

@@ -190,6 +190,11 @@ public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, 
     /////////////////////////////////
     public void ModelBottomFace(List<string> _telemetry)
     {
+        var contour = new PieceContour 
+        {
+            ContourLines = _dto.InterestFloorDFMAData.BottomFaceOuterCurveLoop.Select(a => a as Line).ToList()!
+        };
+
         _dto.BottomFaceDirectShapeDMFAData = RunSubworkflow<
             DirectShape_ModelPlanarByBoundaryLinesArgs,
             DirectShape_ModelPlanarByBoundaryLines,
@@ -197,7 +202,7 @@ public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, 
             DirectShapeDMFAData
         >(
             new(
-                BoundaryLines: _dto.InterestFloorDFMAData.BottomFaceOuterCurveLoop.Select(a => a as Line).ToList()!,
+                PieceContour: contour,
                 ExtrusionDirection: XYZ.BasisZ.Negate(),
                 ExtrusionThickness: CARDBOARD_THICKNESS,
                 DirectShapeName: "BottomFace",
@@ -225,6 +230,11 @@ public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, 
 
     public void ModelBottomInternalFace(List<string> _telemetry)
     {
+        var contour = new PieceContour
+        {
+            ContourLines = _dto.BottomFaceOuterCurveLoopInternalOffsetBoundary!
+        };
+
         _dto.BottomInternalFaceDirectShapeDMFAData = RunSubworkflow<
             DirectShape_ModelPlanarByBoundaryLinesArgs,
             DirectShape_ModelPlanarByBoundaryLines,
@@ -232,7 +242,7 @@ public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, 
             DirectShapeDMFAData
         >(
             new(
-                BoundaryLines: _dto.BottomFaceOuterCurveLoopInternalOffsetBoundary!,
+                PieceContour: contour,
                 ExtrusionDirection: XYZ.BasisZ.Negate(),
                 ExtrusionThickness: CARDBOARD_THICKNESS,
                 DirectShapeName: "BottomInternalFace",
@@ -249,6 +259,11 @@ public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, 
     /////////////////////////////////
     public void ModelTopFace(List<string> _telemetry)
     {
+        var contour = new PieceContour
+        {
+            ContourLines = _dto.InterestFloorDFMAData.TopFaceOuterCurveLoop.Select(a => a as Line).ToList()!
+        };
+
         _dto.TopFaceDirectShapeDMFAData = RunSubworkflow<
             DirectShape_ModelPlanarByBoundaryLinesArgs,
             DirectShape_ModelPlanarByBoundaryLines,
@@ -256,7 +271,7 @@ public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, 
             DirectShapeDMFAData
         >(
             new(
-                BoundaryLines: _dto.InterestFloorDFMAData.TopFaceOuterCurveLoop.Select(a => a as Line).ToList()!,
+                PieceContour: contour,
                 ExtrusionDirection: XYZ.BasisZ.Negate(),
                 ExtrusionThickness: CARDBOARD_THICKNESS,
                 DirectShapeName: "TopFace",
@@ -284,6 +299,11 @@ public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, 
 
     public void ModelTopInternalFace(List<string> _telemetry)
     {
+        var contour = new PieceContour
+        {
+            ContourLines = _dto.TopFaceOuterCurveLoopInternalOffsetBoundary!
+        };
+
         _dto.TopInternalFaceDirectShapeDMFAData = RunSubworkflow<
             DirectShape_ModelPlanarByBoundaryLinesArgs,
             DirectShape_ModelPlanarByBoundaryLines,
@@ -291,7 +311,7 @@ public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, 
             DirectShapeDMFAData
         >(
             new(
-                BoundaryLines: _dto.TopFaceOuterCurveLoopInternalOffsetBoundary!,
+                PieceContour: contour,
                 ExtrusionDirection: XYZ.BasisZ.Negate(),
                 ExtrusionThickness: CARDBOARD_THICKNESS,
                 DirectShapeName: "TopInternalFace",
@@ -346,7 +366,7 @@ public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, 
         _dto.BottomFaceOuterCurveLoopDisplacedLinesPiecesContours = GenerateDirectionSharingPieceContours(
                 _dto.BottomFaceOuterCurveLoopDisplacedLines,
                 pieceHeight,
-                ContourWorkplaneAlignmentOptions.XY,
+                ContourWorkplaneAlignmentOptions.ZAndCustomAngle,
                 _telemetry
             );
     }
@@ -374,7 +394,7 @@ public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, 
                     pieceHeight: pieceHeight,
                     nameBase: "BottomFaceOuterCurveLoopDisplacedLinesPiecesContour",
                     heightAdjustment: 0.0,
-                    negateDirection: true
+                    negateDirection: false
                 )
             );
         }
@@ -481,7 +501,7 @@ public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, 
             new(
                 FaceToSubdivide: _dto.InternalBottomShapeTopFace,
                 SubdivisionSeparation: INTERNAL_SUPPORTS_SEPARATION_2,
-                SubdivisionBasis: SubdivisionAxis.X
+                SubdivisionBasis: SubdivisionAxis.Y
             )
         );
     }
@@ -498,14 +518,9 @@ public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, 
 
         foreach (var item in _dto.BottomShapeTopFaceVerticalSubdivisoryLinesDirectShapeDMFAData)
         {
-            if (item.DirectBottomFace == null) continue;
+            if (item.DirectBottomFace == null) throw new Exception($"Missing bottom face on direct Shape: {item.DirectShape.Id}");
 
-            // 1. Get the direction THIS specific face is pointing
-            XYZ faceNormal = item.DirectBottomFace.ComputeNormal(new UV(0.5, 0.5));
-
-            // 2. Evaluate counter-clockwise against the face's own normal!
-            var validLoop = item.DirectBottomFace.GetEdgesAsCurveLoops()
-                .First(a => a.IsCounterclockwise(faceNormal));
+            var validLoop = item.DirectBottomFace.GetEdgesAsCurveLoops().First();
 
             if (validLoop != null)
             {
@@ -540,6 +555,13 @@ public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, 
                 Contours: verticalSupportContours
             )
         );
+
+        _telemetry.Add($"{nameof(_dto.BottomShapeTopFaceFinalHorizontalSubdivisoryLines)}: {_dto.BottomShapeTopFaceFinalHorizontalSubdivisoryLines.Count}");
+
+        foreach (var item in _dto.BottomShapeTopFaceFinalHorizontalSubdivisoryLines)    
+        {
+            _telemetry.Add($"Line: {item.GetEndPoint(0)}, {item.GetEndPoint(1)}");
+        }
     }
 
     public void GenerateBottomShapeTopFaceHorizontalSubdivisoryLinesContours(List<string> _telemetry)
@@ -654,7 +676,7 @@ public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, 
             DirectShapeDMFAData
         >(
             new(
-                BoundaryLines: contour.ContourLines,
+                PieceContour: contour,
                 ExtrusionDirection: extrusionDirection,
                 ExtrusionThickness: extrusionThickness,
                 DirectShapeName: $"{nameBase}_{pieceIndex + 1}",

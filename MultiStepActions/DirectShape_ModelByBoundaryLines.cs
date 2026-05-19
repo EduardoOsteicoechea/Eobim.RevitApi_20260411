@@ -1,22 +1,27 @@
-﻿using Eobim.RevitApi.Framework;
-using Autodesk.Revit.DB;
+﻿using Autodesk.Revit.DB;
 using Eobim.RevitApi.Core;
+using Eobim.RevitApi.DFMA;
+using Eobim.RevitApi.Framework;
 
 namespace Eobim.RevitApi.MultiStepActions;
 
 public record DirectShape_ModelPlanarByBoundaryLinesArgs(
-    List<Line> BoundaryLines,
+    PieceContour PieceContour,
     XYZ ExtrusionDirection,
     double ExtrusionThickness,
     string DirectShapeName,
     double HeightAdjustment = 0.0
 );
 
-public class DirectShape_ModelPlanarByBoundaryLines(Document doc, string workflowName) : MultistepObservableAction<DirectShape_ModelPlanarByBoundaryLinesArgs, DirectShape_ModelByBoundaryLinesDto, DirectShapeDMFAData>(doc, workflowName)
+public class DirectShape_ModelPlanarByBoundaryLines(Document doc, string workflowName) : MultistepObservableAction<
+    DirectShape_ModelPlanarByBoundaryLinesArgs, 
+    DirectShape_ModelByBoundaryLinesDto, 
+    DirectShapeDMFAData
+    >(doc, workflowName)
 {
     public override void SafelyInitializeInputs(DirectShape_ModelPlanarByBoundaryLinesArgs args)
     {
-        _dto.BoundaryLines = args.BoundaryLines;
+        _dto.PieceContour = args.PieceContour;
         _dto.ExtrusionDirection = args.ExtrusionDirection;
         _dto.ExtrusionThickness = args.ExtrusionThickness;
         _dto.DirectShapeName = args.DirectShapeName;
@@ -41,7 +46,7 @@ public class DirectShape_ModelPlanarByBoundaryLines(Document doc, string workflo
 
         if (!_dto.HeightAdjustment.Equals(0.0))
         {
-            foreach (var item in _dto.BoundaryLines)
+            foreach (var item in _dto.PieceContour.ContourLines)
             {
                 _dto.ZAdjustedBoundaryLines.Add(Line.CreateBound(
                     new XYZ(item.GetEndPoint(0).X, item.GetEndPoint(0).Y, item.GetEndPoint(0).Z + _dto.HeightAdjustment),
@@ -51,7 +56,7 @@ public class DirectShape_ModelPlanarByBoundaryLines(Document doc, string workflo
         }
         else
         {
-            _dto.ZAdjustedBoundaryLines = _dto.BoundaryLines;
+            _dto.ZAdjustedBoundaryLines = _dto.PieceContour.ContourLines;
         }
     }
 
@@ -173,13 +178,14 @@ public class DirectShape_ModelPlanarByBoundaryLines(Document doc, string workflo
             MaxY = _dto.MaxY,
             DirectShapeLeadFace = _dto.DirectShapeLeadFace,
             DirectShapeLeadFaceReference = _dto.DirectShapeLeadFace.Reference,
-            AngleToXYZBasisZ = _dto.ExtrusionDirection.AngleTo(XYZ.BasisZ)
+            AngleToXYZBasisZ = _dto.ExtrusionDirection.AngleTo(XYZ.BasisZ),
+            PieceContour = _dto.PieceContour
         };
     }
 }
 public class DirectShape_ModelByBoundaryLinesDto : Dto
 {
-    public List<Line> BoundaryLines { get; set; }
+    public PieceContour PieceContour { get; set; }
     public XYZ ExtrusionDirection { get; set; }
     public double ExtrusionThickness { get; set; }
     public string DirectShapeName { get; set; }

@@ -1,4 +1,5 @@
 ﻿using Autodesk.Revit.DB;
+using Eobim.RevitApi.DFMA;
 
 namespace Eobim.RevitApi.MultiStepActions;
 
@@ -25,6 +26,7 @@ public class DirectShapeDMFAData
     public double RequiredZDisplacement { get; set; }
     public CurveLoop DisplacedCurveLoop { get; set; }
     public double AngleToXYZBasisZ { get; set; }
+    public PieceContour PieceContour { get; set; }
 
     public DirectShapeDMFAData() {}
     public DirectShapeDMFAData(DirectShape directShape)

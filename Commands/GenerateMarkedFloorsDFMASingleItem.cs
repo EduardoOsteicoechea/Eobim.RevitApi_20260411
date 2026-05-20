@@ -1,11 +1,8 @@
 using Autodesk.Revit.DB;
 using Eobim.RevitApi.DFMA;
 using Eobim.RevitApi.Framework;
-using System.Windows.Controls;
-
 
 namespace Eobim.RevitApi.MultiStepActions;
-
 
 public record GenerateMarkedFloorsDFMASingleItemArgs(
     Floor InterestFloor, 
@@ -13,8 +10,9 @@ public record GenerateMarkedFloorsDFMASingleItemArgs(
     FamilySymbol SheetFamilySymbol
     );
 
-public partial class GenerateMarkedFloorsDFMASingleItem(Document doc, string workflowName) :
-    MultistepObservableAction<GenerateMarkedFloorsDFMASingleItemArgs, GenerateMarkedFloorsDFMASingleItemDto, bool>(doc, workflowName)
+public partial class GenerateMarkedFloorsDFMASingleItem(Document doc, string workflowName) 
+    :
+MultistepObservableAction<GenerateMarkedFloorsDFMASingleItemArgs, GenerateMarkedFloorsDFMASingleItemDto, bool>(doc, workflowName)
 {
     protected override void OnAfterGeometryTransactionGroupBeforeFileIo() { }
 
@@ -30,7 +28,6 @@ public partial class GenerateMarkedFloorsDFMASingleItem(Document doc, string wor
 
     private readonly string EXPORT_FOLDER_PATH = @"C:\Users\eduar\Desktop\Room_003\Revit2027\PDF_Exports";
 
-
     public override void SafelyInitializeInputs(GenerateMarkedFloorsDFMASingleItemArgs args) 
     {
         _dto.InterestFloor = args.InterestFloor;
@@ -40,79 +37,83 @@ public partial class GenerateMarkedFloorsDFMASingleItem(Document doc, string wor
 
     protected override void SetActions()
     {
-        ///* 5 */
-        //Add(GetInterestFloorDMFADataWorkflow);
 
-        ///////////////////////////////////
-        ///// Floor Horizontal Faces
-        ///////////////////////////////////
-        ///* 5 */
-        //Add(ModelBottomFace);
-        ///* 6 */
-        //Add(GenerateCurveLoopInternalOffsetBoundaryWorkflow);
-        ///* 7 */
-        //Add(ModelBottomInternalFace);
-        ///* 8 */
-        //Add(ModelTopFace);
-        ///* 9 */
-        //Add(GenerateCurveLoopInternalOffsetBoundaryWorkflowForTopFace);
-        ///* 10 */
-        //Add(ModelTopInternalFace);
+        /////////////////////////////////
+        /// Get floor data
+        /////////////////////////////////
+        /* 5 */
+        Add(GetInterestFloorDMFADataWorkflow);
 
-        ///////////////////////////////////
-        ///// Floor Vertical Outer Faces
-        ///////////////////////////////////
-        ///* 11 */
-        //Add(GenerateBottomFaceOffsetOuterCurveLoop);
-        ///* 12 */
-        //Add(GenerateBottomFaceOuterCurveLoopDisplacedLines);
-        ///* 13 */
-        //Add(GenerateBottomFaceOuterCurveLoopDisplacedLinesPiecesContoursCurveLoops);
-        ///* 14 */
-        //Add(ModelBottomFaceOuterCurveLoopDisplacedLinesPiecesContours);
+        /////////////////////////////////
+        /// Floor Horizontal Faces
+        /////////////////////////////////
+        /* 5 */
+        Add(ModelBottomFace);
+        /* 6 */
+        Add(GenerateCurveLoopInternalOffsetBoundaryWorkflow);
+        /* 7 */
+        Add(ModelBottomInternalFace);
+        /* 8 */
+        Add(ModelTopFace);
+        /* 9 */
+        Add(GenerateCurveLoopInternalOffsetBoundaryWorkflowForTopFace);
+        /* 10 */
+        Add(ModelTopInternalFace);
 
-        ///////////////////////////////////
-        ///// Floor Vertical Internal Supports generation
-        ///////////////////////////////////
-        ///* 15 */
-        //Add(GetInternalBottomShapeTopFace);
-        ///* 16 */
-        //Add(GenerateBottomShapeTopFaceVerticalSubdivisoryLines);
-        ///* 17 */
-        //Add(GenerateBottomShapeTopFaceVerticalSubdivisoryLinesContours);
-        ///* 18 */
-        //Add(ModelBottomShapeTopFaceVerticalSubdivisoryLines);
+        /////////////////////////////////
+        /// Floor Vertical Outer Faces
+        /////////////////////////////////
+        /* 11 */
+        Add(GenerateBottomFaceOffsetOuterCurveLoop);
+        /* 12 */
+        Add(GenerateBottomFaceOuterCurveLoopDisplacedLines);
+        /* 13 */
+        Add(GenerateBottomFaceOuterCurveLoopDisplacedLinesPiecesContoursCurveLoops);
+        /* 14 */
+        Add(ModelBottomFaceOuterCurveLoopDisplacedLinesPiecesContours);
 
-        ///////////////////////////////////
-        ///// Floor Horizontal Internal Supports generation
-        ///////////////////////////////////
-        ///* 19 */
-        //Add(GenerateBottomShapeTopFaceHorizontalSubdivisoryLines);
-        ///* 20 */
-        //Add(GenerateBottomShapeTopFaceHorizontalSubdivisoryLinesIntersectionsWithVerticalSubdivisoryLines);
-        ///* 21 */
-        //Add(GenerateBottomShapeTopFaceHorizontalSubdivisoryLinesContours);
-        ///* 22 */
-        //Add(ModelBottomShapeTopFaceHorizontalSubdivisoryLines);
+        /////////////////////////////////
+        /// Floor Vertical Internal Supports generation
+        /////////////////////////////////
+        /* 15 */
+        Add(GetInternalBottomShapeTopFace);
+        /* 16 */
+        Add(GenerateBottomShapeTopFaceVerticalSubdivisoryLines);
+        /* 17 */
+        Add(GenerateBottomShapeTopFaceVerticalSubdivisoryLinesContours);
+        /* 18 */
+        Add(ModelBottomShapeTopFaceVerticalSubdivisoryLines);
 
-        ///////////////////////////////////
-        ///// Final Output & Fabrication (DXF & PDF)
-        ///////////////////////////////////
-        ///* 23 */
-        //Add(OrderlyPlaceFaces);
-        ///* 25 */
-        //Add(GetPrintableAreaMetrics);
-        ///* 26 */
-        //Add(ArrangePiecesInGroups, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
-        ///* 27 */
-        //Add(GenerateSheetsForArrangedGroups, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
-        ///* 28 */
-        //Add(ExportSheetsToPDF);
+        /////////////////////////////////
+        /// Floor Horizontal Internal Supports generation
+        /////////////////////////////////
+        /* 19 */
+        Add(GenerateBottomShapeTopFaceHorizontalSubdivisoryLines);
+        /* 20 */
+        Add(GenerateBottomShapeTopFaceHorizontalSubdivisoryLinesIntersectionsWithVerticalSubdivisoryLines);
+        /* 21 */
+        Add(GenerateBottomShapeTopFaceHorizontalSubdivisoryLinesContours);
+        /* 22 */
+        Add(ModelBottomShapeTopFaceHorizontalSubdivisoryLines);
 
-        ///////////////////////////////////
-        ///// Cleanup
-        ///////////////////////////////////
-        //Add(HideInterestFloor, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
+        /////////////////////////////////
+        /// Final Output & Fabrication (DXF & PDF)
+        /////////////////////////////////
+        /* 23 */
+        Add(OrderlyPlaceFaces);
+        /* 25 */
+        Add(GetPrintableAreaMetrics);
+        /* 26 */
+        Add(ArrangePiecesInGroups, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
+        /* 27 */
+        Add(GenerateSheetsForArrangedGroups, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
+        /* 28 */
+        Add(ExportSheetsToPDF);
+
+        /////////////////////////////////
+        /// Cleanup
+        /////////////////////////////////
+        Add(HideInterestFloor, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
     }
 
 
@@ -456,7 +457,6 @@ public partial class GenerateMarkedFloorsDFMASingleItem(Document doc, string wor
 
     public void GenerateBottomShapeTopFaceHorizontalSubdivisoryLinesIntersectionsWithVerticalSubdivisoryLines(List<string> _telemetry)
     {
-        // 1. Upstream Null Check
         if (_dto.BottomShapeTopFaceVerticalSubdivisoryLinesDirectShapeDMFAData == null)
         {
             throw new NullReferenceException("CRITICAL ERROR: '_dto.BottomShapeTopFaceVerticalSubdivisoryLinesDirectShapeDMFAData' is null.");
@@ -534,7 +534,7 @@ public partial class GenerateMarkedFloorsDFMASingleItem(Document doc, string wor
         double pieceHeight,
         ContourWorkplaneAlignmentOptions contourWorkplaneAlignmentOption,
         List<string> _telemetry
-        )
+    )
     {
         var result = new List<PieceContour>();
 

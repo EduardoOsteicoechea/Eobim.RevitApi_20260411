@@ -63,7 +63,9 @@ public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, 
         var markValue = "DFMA_target";
 
         var parameterValueProvider = new ParameterValueProvider(new ElementId(BuiltInParameter.ALL_MODEL_MARK));
+
         var filterStringRule = new FilterStringRule(parameterValueProvider, stringEqualsEvaluator, markValue);
+
         var filter = new ElementParameterFilter(filterStringRule);
 
         var result = new FilteredElementCollector(_doc!)
@@ -102,7 +104,6 @@ public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, 
         }
     }
 }
-
 
 public class GenerateMarkedFloorsDFMADto : Dto
 {

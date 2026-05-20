@@ -4,13 +4,11 @@ using Eobim.RevitApi.Framework;
 
 namespace Eobim.RevitApi.MultiStepActions;
 
-
 public record RevitDFMA_ExtractFloorDataArgs(Floor InterestFloor);
-
 
 internal class RevitDFMA_ExtractFloorData(Document doc, string workflowName)
     :
-    MultistepObservableAction<RevitDFMA_ExtractFloorDataArgs, RevitDFMA_ExtractFloorDataDto, FloorDFMAData>(doc, workflowName)
+MultistepObservableAction<RevitDFMA_ExtractFloorDataArgs, RevitDFMA_ExtractFloorDataDto, FloorDFMAData>(doc, workflowName)
 {
     public override void SafelyInitializeInputs(RevitDFMA_ExtractFloorDataArgs args)
     {
@@ -80,7 +78,7 @@ internal class RevitDFMA_ExtractFloorData(Document doc, string workflowName)
 
     public void GetBottomFaceLowestPoint(List<string> _telemetry)
     {
-        var result = this.GetHighestPointOnFace(_dto.InterestFloorBottomFace);
+        var result = this.GetLowestPointOnFace(_dto.InterestFloorBottomFace);
 
         if (result is null) throw new NullReferenceException();
 
@@ -88,6 +86,17 @@ internal class RevitDFMA_ExtractFloorData(Document doc, string workflowName)
     }
 
     public XYZ GetHighestPointOnFace(Face face)
+    {
+        var curveLoops = face.GetEdgesAsCurveLoops();
+
+        var curves = curveLoops.SelectMany(a => a).ToList();
+
+        var points = curves.Select(a => a.GetEndPoint(0)).Concat(curves.Select(a => a.GetEndPoint(1))).ToList();
+
+        return points.OrderByDescending(a => a.Z).First();
+    }
+
+    public XYZ GetLowestPointOnFace(Face face)
     {
         var curveLoops = face.GetEdgesAsCurveLoops();
 
@@ -171,12 +180,15 @@ internal class RevitDFMA_ExtractFloorData(Document doc, string workflowName)
 
     public void SetResult(List<string> _telemetry)
     {
+        var area = _dto.InterestFloor.get_Parameter(BuiltInParameter.HOST_AREA_COMPUTED)?.AsDouble() ?? 0.0;
+        var volume = _dto.InterestFloor.get_Parameter(BuiltInParameter.HOST_VOLUME_COMPUTED)?.AsDouble() ?? 0.0;
+        
         Result = new FloorDFMAData
         {
             Id = _dto.InterestFloor.Id,
             Name = _dto.InterestFloor.Name,
-            Area = _dto.InterestFloor.get_Parameter(BuiltInParameter.HOST_AREA_COMPUTED).AsDouble(),
-            Volume = _dto.InterestFloor.get_Parameter(BuiltInParameter.HOST_VOLUME_COMPUTED).AsDouble(),
+            Area = area,
+            Volume = volume,
             TopFace = _dto.InterestFloorTopFace,
             BottomFace = _dto.InterestFloorBottomFace,
             TopFaceHighestPoint = _dto.InterestFloorTopFaceHighestPoint,

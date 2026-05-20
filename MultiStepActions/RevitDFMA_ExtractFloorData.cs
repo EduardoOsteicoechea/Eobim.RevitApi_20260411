@@ -1,5 +1,5 @@
 ﻿using Autodesk.Revit.DB;
-using Eobim.RevitApi.Core;
+using Eobim.RevitApi.DFMA;
 using Eobim.RevitApi.Framework;
 
 namespace Eobim.RevitApi.MultiStepActions;
@@ -20,30 +20,24 @@ internal class RevitDFMA_ExtractFloorData(Document doc, string workflowName)
     protected override void SetActions()
     {
         /* 1 */
-        Add(GetInterestFloorTopFace);
-
+        Add(GetTopFace);
         /* 2 */
-        Add(GetInterestFloorBottomFace);
-
+        Add(GetBottomFace);
         /* 3 */
-        Add(GetInterestFloorTopFaceHighestPoint);
-
+        Add(GetTopFaceHighestPoint);
         /* 4 */
-        Add(GetInterestFloorBottomFaceLowestPoint);
-
+        Add(GetBottomFaceLowestPoint);
         /* 5 */
-        Add(GetFamilyInstancesCommonHeight);
-
+        Add(GetThickness);
         /* 6 */
-        Add(GetInterestFloorBottomFaceOuterCurveLoop);
-
+        Add(GetBottomFaceOuterCurveLoop);
         /* 7 */
-        Add(GetInterestFloorTopFaceOuterCurveLoop);
-
+        Add(GetTopFaceOuterCurveLoop);
         /* 8 */
         Add(SetResult);
     }
-    public void GetInterestFloorTopFace(List<string> _telemetry)
+
+    public void GetTopFace(List<string> _telemetry)
     {
         IList<Reference> references = HostObjectUtils.GetTopFaces(_dto.InterestFloor as HostObject);
 
@@ -59,7 +53,7 @@ internal class RevitDFMA_ExtractFloorData(Document doc, string workflowName)
         _dto.InterestFloorTopFace = result;
     }
 
-    public void GetInterestFloorBottomFace(List<string> _telemetry)
+    public void GetBottomFace(List<string> _telemetry)
     {
         IList<Reference> references = HostObjectUtils.GetBottomFaces(_dto.InterestFloor as HostObject);
 
@@ -75,7 +69,7 @@ internal class RevitDFMA_ExtractFloorData(Document doc, string workflowName)
         _dto.InterestFloorBottomFace = result;
     }
 
-    public void GetInterestFloorTopFaceHighestPoint(List<string> _telemetry)
+    public void GetTopFaceHighestPoint(List<string> _telemetry)
     {
         var result = this.GetHighestPointOnFace(_dto.InterestFloorTopFace);
 
@@ -84,7 +78,7 @@ internal class RevitDFMA_ExtractFloorData(Document doc, string workflowName)
         _dto.InterestFloorTopFaceHighestPoint = result;
     }
 
-    public void GetInterestFloorBottomFaceLowestPoint(List<string> _telemetry)
+    public void GetBottomFaceLowestPoint(List<string> _telemetry)
     {
         var result = this.GetHighestPointOnFace(_dto.InterestFloorBottomFace);
 
@@ -104,7 +98,7 @@ internal class RevitDFMA_ExtractFloorData(Document doc, string workflowName)
         return points.OrderBy(a => a.Z).First();
     }
 
-    public void GetFamilyInstancesCommonHeight(List<string> _telemetry)
+    public void GetThickness(List<string> _telemetry)
     {
         var result = _dto.InterestFloorTopFaceHighestPoint.Z - _dto.InterestFloorBottomFaceLowestPoint.Z;
 
@@ -113,7 +107,7 @@ internal class RevitDFMA_ExtractFloorData(Document doc, string workflowName)
         _dto.FamilyInstancesCommonHeight = result;
     }
 
-    public void GetInterestFloorBottomFaceOuterCurveLoop(List<string> _telemetry)
+    public void GetBottomFaceOuterCurveLoop(List<string> _telemetry)
     {
         CurveLoop result = GetFaceOuterCurveLoop(_telemetry, _dto.InterestFloorBottomFace);
 
@@ -122,7 +116,7 @@ internal class RevitDFMA_ExtractFloorData(Document doc, string workflowName)
         _dto.BottomFaceOuterCurveLoop = result;
     }
 
-    public void GetInterestFloorTopFaceOuterCurveLoop(List<string> _telemetry)
+    public void GetTopFaceOuterCurveLoop(List<string> _telemetry)
     {
         CurveLoop result = GetFaceOuterCurveLoop(_telemetry, _dto.InterestFloorTopFace);
 
@@ -181,8 +175,8 @@ internal class RevitDFMA_ExtractFloorData(Document doc, string workflowName)
         {
             Id = _dto.InterestFloor.Id,
             Name = _dto.InterestFloor.Name,
-            Area = _dto.InterestFloor.GetParameters("Area").FirstOrDefault()?.AsDouble() ?? 0,
-            Volume = _dto.InterestFloor.GetParameters("Volume").FirstOrDefault()?.AsDouble() ?? 0,
+            Area = _dto.InterestFloor.get_Parameter(BuiltInParameter.HOST_AREA_COMPUTED).AsDouble(),
+            Volume = _dto.InterestFloor.get_Parameter(BuiltInParameter.HOST_VOLUME_COMPUTED).AsDouble(),
             TopFace = _dto.InterestFloorTopFace,
             BottomFace = _dto.InterestFloorBottomFace,
             TopFaceHighestPoint = _dto.InterestFloorTopFaceHighestPoint,
@@ -192,21 +186,6 @@ internal class RevitDFMA_ExtractFloorData(Document doc, string workflowName)
             TopFaceOuterCurveLoop = _dto.TopFaceOuterCurveLoop
         };
     }
-}
-
-public class FloorDFMAData
-{
-    public ElementId Id { get; set; }
-    public string Name { get; set; }
-    public double Area { get; set; }
-    public double Volume { get; set; }
-    public Face TopFace { get; set; }
-    public Face BottomFace { get; set; }
-    public XYZ TopFaceHighestPoint { get; set; }
-    public XYZ BottomFaceLowestPoint { get; set; }
-    public double Thickness { get; set; }
-    public CurveLoop TopFaceOuterCurveLoop { get; set; }
-    public CurveLoop BottomFaceOuterCurveLoop { get; set; }
 }
 
 public class RevitDFMA_ExtractFloorDataDto : Dto

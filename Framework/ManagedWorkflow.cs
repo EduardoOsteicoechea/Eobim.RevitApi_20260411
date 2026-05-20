@@ -52,6 +52,7 @@ public interface ISubworkflow<TArgs, Dto, TResult>
 {
     public void SafelyInitializeInputs(TArgs args);
     public void Execute(int executedActionCounter);
+    public void StopWorkflow(string message);
     public TResult Result { get; set; }
 }
 
@@ -68,12 +69,36 @@ public abstract class ManagedWorkflow<TArgs, Dto, TResult> : ISubworkflow<TArgs,
     protected bool _isRolledBack = false;
     public TResult Result { get; set; }
     public int _executedActionCounter { get; set; } = 0;
+    public bool _interruptRequestEmmitted { get; set; } = false;
 
     private readonly List<(Action<List<string>> action, bool mustLogAction, TransactionManagementOptions transactionManagementOption)> _actions = [];
 
     protected void Add(Action<List<string>> a, bool mustLogAction = true, TransactionManagementOptions b = TransactionManagementOptions.TransactionlessAction)
     {
         _actions.Add((a, mustLogAction, b));
+    }
+
+    public void StopWorkflow(string message)
+    {
+        _interruptRequestEmmitted = true;
+
+        if (_workflowObservableData != null)
+        {
+            int actionIndex = _executedActionCounter - 1;
+            string actionName = $"Action {actionIndex}";
+
+            if (actionIndex >= 0 && actionIndex < _actions.Count)
+            {
+                actionName = _actions[actionIndex].action.Method.Name;
+            }
+
+            _workflowObservableData.Failure = new WorkflowObservableDataFailure
+            {
+                Message = $"Workflow intentionally stopped: {message}",
+                StackTrace = $"Invoked via StopWorkflow() during action: '{actionName}'",
+                ActionNumber = _executedActionCounter
+            };
+        }
     }
 
     public abstract void SafelyInitializeInputs(TArgs args);
@@ -246,7 +271,14 @@ public abstract class ManagedWorkflow<TArgs, Dto, TResult> : ISubworkflow<TArgs,
     private void ParticularizedTransactionsWorkflow()
     {
         for (int i = 0; i < _actions.Count; i++)
+        {
+            if (_interruptRequestEmmitted)
+            {
+                break;
+            }
+
             ExecuteParticularizedStyleForSingleAction(i);
+        }
     }
 
     private void ExecuteParticularizedStyleForSingleAction(int i)
@@ -287,6 +319,11 @@ public abstract class ManagedWorkflow<TArgs, Dto, TResult> : ISubworkflow<TArgs,
     {
         for (int i = 0; i < _actions.Count; i++)
         {
+            if (_interruptRequestEmmitted)
+            {
+                break;
+            }
+
             var action = _actions[i];
             ManageAction(action.action, action.mustLogAction, i + 1);
         }
@@ -301,6 +338,11 @@ public abstract class ManagedWorkflow<TArgs, Dto, TResult> : ISubworkflow<TArgs,
 
                 for (int i = 0; i < _actions.Count; i++)
                 {
+                    if (_interruptRequestEmmitted) 
+                    {
+                        break;
+                    }
+
                     var action = _actions[i];
                     ManageAction(action.action, action.mustLogAction, i + 1);
                 }
@@ -394,6 +436,7 @@ public abstract class ManagedWorkflow<TArgs, Dto, TResult> : ISubworkflow<TArgs,
             {
                 IncludeFields = true,
                 WriteIndented = true,
+                Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
             }
         );
 

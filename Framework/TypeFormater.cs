@@ -1076,7 +1076,7 @@ public static class TypeFormatter
 
     public static string Family(Family item)
     {
-        return SafeElement(item, d => $"{d.Id}");
+        return SafeElement(item, d => $"{d.Name}");
     }
 
     public static string FamilySymbol(FamilySymbol item)

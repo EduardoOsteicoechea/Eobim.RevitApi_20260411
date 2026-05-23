@@ -50,11 +50,13 @@ MultistepObservableAction<GenerateMarkedFloorsDFMASingleItemArgs, GenerateMarked
         /// Floor Horizontal Faces
         /////////////////////////////////
         /* 3 */
-        Add(ModelBottomFace);
+        Add(GetBotttomFaceContourLines);
         /* 4 */
-        Add(GenerateCurveLoopInternalOffsetBoundaryWorkflow);
+        Add(ModelBottomFace);
         /* 5 */
-        //Add(ModelBottomInternalFace);
+        Add(GenerateCurveLoopInternalOffsetBoundaryWorkflow);
+        /* 6 */
+        Add(ModelBottomInternalFace);
         ///* 6 */
         //Add(ModelTopFace);
         ///* 7 */
@@ -193,12 +195,38 @@ MultistepObservableAction<GenerateMarkedFloorsDFMASingleItemArgs, GenerateMarked
     /// Bottom Face
     /////////////////////////////////
     /////////////////////////////////
+    public void GetBotttomFaceContourLines(List<string> _telemetry)
+    {
+        var contuourCurves = _dto.InterestFloorDFMAData.BottomFaceOuterCurveLoop.Select(a => a as Curve).ToList()!;
+
+        var result = new List<Line>();
+
+        foreach (var item in contuourCurves)
+        {
+            var points = item.Tessellate();
+
+            for (int i = 0; i < points.Count - 1; i++)
+            {
+                var line = Line.CreateBound(points[i], points[i + 1]);
+                result.Add(line);
+            }
+        }
+
+        if(result is null) throw new NullReferenceException("The resulting list of contour lines is null, which may indicate an issue with the tessellation process.");
+
+        if(!result.Any()) throw new InvalidOperationException("The resulting list of contour lines is empty, which may indicate an issue with the tessellation process.");
+
+        _dto.BottomFaceContourLines = result;
+    }
+
     public void ModelBottomFace(List<string> _telemetry)
     {
-        var contour = new PieceContour 
+        var contour = new PieceContour
         {
-            ContourLines = _dto.InterestFloorDFMAData.BottomFaceOuterCurveLoop.Select(a => a as Line).ToList()!
+            ContourLines = _dto.BottomFaceContourLines
         };
+
+        _telemetry.Add($"{nameof(contour.ContourLines)}: {contour.ContourLines.Count}");
 
         _dto.BottomFaceDirectShapeDMFAData = RunSubworkflow<
             DirectShape_ModelPlanarByBoundaryLinesArgs,
@@ -1199,6 +1227,7 @@ public class GenerateMarkedFloorsDFMASingleItemDto : Dto
     /////////////////////////////////
     public Floor InterestFloor { get; set; }
     public FloorDFMAData InterestFloorDFMAData { get; set; }
+    public List<Line> BottomFaceContourLines { get; set; }
 
 
     /////////////////////////////////

@@ -27,21 +27,25 @@ public class DirectShape_ModelPlanarByBoundaryLines(Document doc, string parentA
         _dto.ExtrusionThickness = args.ExtrusionThickness;
         _dto.DirectShapeName = args.DirectShapeName;
         _dto.HeightAdjustment = args.HeightAdjustment;
-
-        // Generate the 8-digit tracking code immediately upon initialization
-        _dto.FabricationCode = Guid.NewGuid().ToString("N").Substring(0, 8).ToUpper();
     }
 
     protected override void SetActions()
     {
+        Add(GenerateShapeFabricationCode);
         Add(AdjustLineHeight);
         Add(GetCurveLoop);
         Add(GetEnclosingDimmensions);
+        Add(PlaceEnclosingModelLines, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
         Add(GenerateSolid);
-        Add(SetShape, false, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
+        Add(SetShape, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
         Add(ExtractDirectShapeLeadFace);
         Add(ExtractDirectShapeBottomFace);
         Add(SetResult);
+    }
+
+    public void GenerateShapeFabricationCode(List<string> _stateTrace)
+    {
+        _dto.FabricationCode = Guid.NewGuid().ToString("N").Substring(0, 8).ToUpper();
     }
 
     public void AdjustLineHeight(List<string> _stateTrace)
@@ -106,6 +110,35 @@ public class DirectShape_ModelPlanarByBoundaryLines(Document doc, string parentA
         _dto.MaxY = maxY;
     }
 
+    public void PlaceEnclosingModelLines(List<string> _stateTrace)
+    {
+        var zHeight = _dto.ZAdjustedBoundaryLines.FirstOrDefault()?.GetEndPoint(0).Z ?? 0.0;
+
+        var p1 = new XYZ(_dto.MinX, _dto.MinY, zHeight);
+        var p2 = new XYZ(_dto.MaxX, _dto.MinY, zHeight);
+        var p3 = new XYZ(_dto.MaxX, _dto.MaxY, zHeight);
+        var p4 = new XYZ(_dto.MinX, _dto.MaxY, zHeight);
+
+        var lines = new List<Line>
+        {
+            Line.CreateBound(p1, p2),
+            Line.CreateBound(p2, p3),
+            Line.CreateBound(p3, p4),
+            Line.CreateBound(p4, p1)
+        };
+
+        var plane = Plane.CreateByNormalAndOrigin(XYZ.BasisZ, p1);
+
+        var sketchPlane = SketchPlane.Create(_doc, plane);
+
+        foreach (var line in lines)
+        {
+            _doc!.Create.NewModelCurve(line, sketchPlane);
+        }
+
+        _stateTrace.Add($"Placed 4 enclosing model lines at Z elevation: {zHeight}");
+    }
+
     public void GenerateSolid(List<string> _stateTrace)
     {
         _stateTrace.Add($"{nameof(_dto.ExtrusionDirection)}: {_dto.ExtrusionDirection}");
@@ -130,6 +163,7 @@ public class DirectShape_ModelPlanarByBoundaryLines(Document doc, string parentA
 
         // Safely set the Mark parameter to the code
         Parameter markParam = _dto.DirectShape.get_Parameter(BuiltInParameter.ALL_MODEL_MARK);
+
         if (markParam != null && !markParam.IsReadOnly)
         {
             markParam.Set(_dto.FabricationCode);
@@ -192,8 +226,6 @@ public class DirectShape_ModelPlanarByBoundaryLines(Document doc, string parentA
             DirectShapeLeadFaceReference = _dto.DirectShapeLeadFace.Reference,
             AngleToXYZBasisZ = _dto.ExtrusionDirection.AngleTo(XYZ.BasisZ),
             PieceContour = _dto.PieceContour,
-
-            // DTO updated internally down below, assuming DirectShapeDMFAData definition includes this now
         };
     }
 }

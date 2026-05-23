@@ -2,13 +2,13 @@
 using Eobim.RevitApi.DFMA;
 using Eobim.RevitApi.Framework;
 
-namespace Eobim.RevitApi.MultiStepActions;
+namespace Eobim.RevitApi.DFMA;
 
 public record RevitDFMA_ExtractFloorDataArgs(Floor InterestFloor);
 
-internal class RevitDFMA_ExtractFloorData(Document doc, string workflowName)
+internal class RevitDFMA_ExtractFloorData(Document doc, string parentActionName, int actionCounter, int? iterativeActionCounter = null)
     :
-MultistepObservableAction<RevitDFMA_ExtractFloorDataArgs, RevitDFMA_ExtractFloorDataDto, FloorDFMAData>(doc, workflowName)
+MultistepObservableAction<RevitDFMA_ExtractFloorDataArgs, RevitDFMA_ExtractFloorDataDto, FloorDFMAData>(doc, parentActionName, actionCounter, iterativeActionCounter)
 {
     public override void SafelyInitializeInputs(RevitDFMA_ExtractFloorDataArgs args)
     {

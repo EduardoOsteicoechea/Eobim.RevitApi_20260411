@@ -9,12 +9,13 @@ namespace Eobim.RevitApi.MultiStepActions;
 
 public record RevitFamily_EntirelySetForUssageInRevitUIArgs(string FamilyPath, string FamilyName, string FamilyTypeName);
 
-public class RevitFamily_EntirelySetForUssageInRevitUI(Document doc, string workflowName)
-    : MultistepObservableAction<
+public class RevitFamily_EntirelySetForUssageInRevitUI(Document doc, string parentActionName, int actionCounter, int? iterativeActionCounter = null)
+    : 
+MultistepObservableAction<
     RevitFamily_EntirelySetForUssageInRevitUIArgs,
     RevitFamily_EntirelySetForUssageInRevitUIDto,
     FamilySymbol
->(doc, workflowName)
+>(doc, parentActionName, actionCounter, iterativeActionCounter)
 {
     public override void SafelyInitializeInputs(RevitFamily_EntirelySetForUssageInRevitUIArgs args)
     {

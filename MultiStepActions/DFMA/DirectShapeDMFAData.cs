@@ -1,7 +1,7 @@
 ﻿using Autodesk.Revit.DB;
 using Eobim.RevitApi.DFMA;
 
-namespace Eobim.RevitApi.MultiStepActions;
+namespace Eobim.RevitApi.DFMA;
 
 public class DirectShapeDMFAData
 {

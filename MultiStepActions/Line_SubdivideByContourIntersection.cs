@@ -144,8 +144,9 @@ public record Line_SubdivideByContourIntersectionArgs
     List<List<Line>> Contours
 );
 
-public class Line_SubdivideByContourIntersection(Document doc, string workflowName)
-    : MultistepObservableAction<Line_SubdivideByContourIntersectionArgs, Line_SubdivideByContourIntersectionDto, List<Line>>(doc, workflowName)
+public class Line_SubdivideByContourIntersection(Document doc, string parentActionName, int actionCounter, int? iterativeActionCounter = null)
+    : 
+MultistepObservableAction<Line_SubdivideByContourIntersectionArgs, Line_SubdivideByContourIntersectionDto, List<Line>>(doc, parentActionName, actionCounter, iterativeActionCounter)
 {
     public override void SafelyInitializeInputs(Line_SubdivideByContourIntersectionArgs args)
     {

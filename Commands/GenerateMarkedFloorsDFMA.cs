@@ -58,37 +58,45 @@ public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, 
     /* 3 */
     public void GetInterestFloors(List<string> _telemetry)
     {
-        var stringEqualsEvaluator = new FilterStringEquals();
-
         var markValue = "DFMA_target";
 
-        var parameterValueProvider = new ParameterValueProvider(new ElementId(BuiltInParameter.ALL_MODEL_MARK));
-
-        var filterStringRule = new FilterStringRule(parameterValueProvider, stringEqualsEvaluator, markValue);
-
-        var filter = new ElementParameterFilter(filterStringRule);
+        // The following works better than Filter Rules for non identical string matches, and allows for a case-insensitive "Contains" check
 
         var result = new FilteredElementCollector(_doc!)
             .OfClass(typeof(Floor))
-            .WherePasses(filter)
             .Cast<Floor>()
+            .Where(floor =>
+            {
+                var markParam = floor.get_Parameter(BuiltInParameter.ALL_MODEL_MARK);
+
+                if (markParam != null && !string.IsNullOrEmpty(markParam.AsString()))
+                {
+                    return markParam.AsString().IndexOf(markValue, StringComparison.OrdinalIgnoreCase) >= 0;
+                }
+
+                return false;
+            })
             .ToList();
 
         if (result is null || result.Count.Equals(0))
-        { 
+        {
             StopWorkflow($"No floors marked with: {markValue}");
         }
+        else
+        {
+            _telemetry.Add($"Marked floor count: {result.Count}");
 
-        _telemetry.Add($"Marked floor count: {result.Count}");
-
-        _dto.InterestFloors = result;
+            _dto.InterestFloors = result;
+        }
     }
 
     /* 4 */
     public void RunGenerateMarkedFloorsDFMAForEachInterestFloor(List<string> _telemetry)
     {
-        foreach (var item in _dto.InterestFloors!)
+        for (int i = 0; i < _dto.InterestFloors!.Count; i++)
         {
+            var item = _dto.InterestFloors[i];
+
             RunSubworkflow<
                 GenerateMarkedFloorsDFMASingleItemArgs,
                 GenerateMarkedFloorsDFMASingleItem,
@@ -96,10 +104,18 @@ public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, 
                 bool
             >(
                 new(
-                    InterestFloor: item,
-                    CommonCarboardFamilySymbol: _dto.CommonCarboardFamilySymbol!,
-                    SheetFamilySymbol: _dto.SheetFamilySymbol!
-                )
+                      InterestFloor: item
+                    , CommonCarboardFamilySymbol: _dto.CommonCarboardFamilySymbol!
+                    , SheetFamilySymbol: _dto.SheetFamilySymbol!
+                    , FabricationScale: 20
+                    , UnscaledCardboardThicknessInMeters: 0.00225
+                    , UnscaledYAxisInternalSupportSeparationInMeters: 0.5
+                    , UnscaledXAxisInternalSupportSeparationInMeters: 0.5
+                    , UnscaledPieceCodeTextSizeInMeters: 0.0015
+                    , PDFExportPath: @"C:\Users\eduar\Desktop\Room_003\Revit2027\PDF_Exports"
+                    , PDFDocumentName: $"DFMA_Fabrication_Sheets_{DateTime.Now:yyyyMMdd_HHmmss}"
+                ),
+                (i +1)
             );
         }
     }

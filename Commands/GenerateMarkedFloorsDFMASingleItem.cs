@@ -5,118 +5,174 @@ using Eobim.RevitApi.Framework;
 namespace Eobim.RevitApi.MultiStepActions;
 
 public record GenerateMarkedFloorsDFMASingleItemArgs(
-    Floor InterestFloor, 
-    FamilySymbol CommonCarboardFamilySymbol, 
-    FamilySymbol SheetFamilySymbol
-    );
+      Floor InterestFloor
+    , FamilySymbol CommonCarboardFamilySymbol
+    , FamilySymbol SheetFamilySymbol
+    , int FabricationScale
+    , double UnscaledCardboardThicknessInMeters
+    , double UnscaledYAxisInternalSupportSeparationInMeters
+    , double UnscaledXAxisInternalSupportSeparationInMeters
+    , double UnscaledPieceCodeTextSizeInMeters
+    , string PDFExportPath
+    , string PDFDocumentName
+);
 
-public partial class GenerateMarkedFloorsDFMASingleItem(Document doc, string workflowName) 
+public class GenerateMarkedFloorsDFMASingleItem(Document doc, string parentActionName, int actionCounter, int? iterativeActionCounter = null) 
     :
-MultistepObservableAction<GenerateMarkedFloorsDFMASingleItemArgs, GenerateMarkedFloorsDFMASingleItemDto, bool>(doc, workflowName)
+MultistepObservableAction<GenerateMarkedFloorsDFMASingleItemArgs, GenerateMarkedFloorsDFMASingleItemDto, bool>(doc, parentActionName, actionCounter, iterativeActionCounter)
 {
-    protected override void OnAfterGeometryTransactionGroupBeforeFileIo() { }
-
-    private const double SCALE = 20.0;
-    private const double ORIGINAL_THICKNESS = 0.00225; // Addded 025mm for the glue
-
-    // 2. Scaled thickness for the 1:1 Revit Model (1.5mm * 20 = 30mm). This is what creates accurate slots!
-    private readonly double CARDBOARD_THICKNESS = UnitUtils.ConvertToInternalUnits(ORIGINAL_THICKNESS * SCALE, UnitTypeId.Meters);
-
-    // 3. Spacing derived accurately from the scaled thickness
-    private readonly double INTERNAL_SUPPORTS_SEPARATION_1 = UnitUtils.ConvertToInternalUnits((ORIGINAL_THICKNESS * SCALE) * (SCALE * .75), UnitTypeId.Meters);
-    private readonly double INTERNAL_SUPPORTS_SEPARATION_2 = UnitUtils.ConvertToInternalUnits((ORIGINAL_THICKNESS * SCALE) * (SCALE * 1.5), UnitTypeId.Meters);
-
-    private readonly string EXPORT_FOLDER_PATH = @"C:\Users\eduar\Desktop\Room_003\Revit2027\PDF_Exports";
-
     public override void SafelyInitializeInputs(GenerateMarkedFloorsDFMASingleItemArgs args) 
     {
         _dto.InterestFloor = args.InterestFloor;
         _dto.CommonCarboardFamilySymbol = args.CommonCarboardFamilySymbol;
         _dto.SheetFamilySymbol = args.SheetFamilySymbol;
+        _dto.FabricationScale = args.FabricationScale;
+        _dto.UnscaledCardboardThicknessInMeters = args.UnscaledCardboardThicknessInMeters;
+        _dto.UnscaledYAxisInternalSupportSeparationInMeters = args.UnscaledYAxisInternalSupportSeparationInMeters;
+        _dto.UnscaledXAxisInternalSupportSeparationInMeters = args.UnscaledXAxisInternalSupportSeparationInMeters;
+        _dto.UnscaledPieceCodeTextSizeInMeters = args.UnscaledPieceCodeTextSizeInMeters;
+        _dto.PDFExportPath = args.PDFExportPath;
+        _dto.PDFDocumentName = args.PDFDocumentName;
     }
 
     protected override void SetActions()
     {
+        /* 1 */
+        Add(SetFabricationMetricsAndSettings);
 
         /////////////////////////////////
         /// Get floor data
         /////////////////////////////////
-        /* 5 */
+        /* 2 */
         Add(GetInterestFloorDMFADataWorkflow);
 
         /////////////////////////////////
         /// Floor Horizontal Faces
         /////////////////////////////////
-        /* 5 */
+        /* 3 */
         Add(ModelBottomFace);
-        /* 6 */
+        /* 4 */
         Add(GenerateCurveLoopInternalOffsetBoundaryWorkflow);
-        /* 7 */
-        Add(ModelBottomInternalFace);
-        /* 8 */
-        Add(ModelTopFace);
-        /* 9 */
-        Add(GenerateCurveLoopInternalOffsetBoundaryWorkflowForTopFace);
-        /* 10 */
-        Add(ModelTopInternalFace);
+        /* 5 */
+        //Add(ModelBottomInternalFace);
+        ///* 6 */
+        //Add(ModelTopFace);
+        ///* 7 */
+        //Add(GenerateCurveLoopInternalOffsetBoundaryWorkflowForTopFace);
+        ///* 8 */
+        //Add(ModelTopInternalFace);
 
-        /////////////////////////////////
-        /// Floor Vertical Outer Faces
-        /////////////////////////////////
-        /* 11 */
-        Add(GenerateBottomFaceOffsetOuterCurveLoop);
-        /* 12 */
-        Add(GenerateBottomFaceOuterCurveLoopDisplacedLines);
-        /* 13 */
-        Add(GenerateBottomFaceOuterCurveLoopDisplacedLinesPiecesContoursCurveLoops);
-        /* 14 */
-        Add(ModelBottomFaceOuterCurveLoopDisplacedLinesPiecesContours);
+        ///////////////////////////////////
+        ///// Floor Vertical Outer Faces
+        ///////////////////////////////////
+        ///* 11 */
+        //Add(GenerateBottomFaceOffsetOuterCurveLoop);
+        ///* 12 */
+        //Add(GenerateBottomFaceOuterCurveLoopDisplacedLines);
+        ///* 13 */
+        //Add(GenerateBottomFaceOuterCurveLoopDisplacedLinesPiecesContoursCurveLoops);
+        ///* 14 */
+        //Add(ModelBottomFaceOuterCurveLoopDisplacedLinesPiecesContours);
 
-        /////////////////////////////////
-        /// Floor Vertical Internal Supports generation
-        /////////////////////////////////
-        /* 15 */
-        Add(GetInternalBottomShapeTopFace);
-        /* 16 */
-        Add(GenerateBottomShapeTopFaceVerticalSubdivisoryLines);
-        /* 17 */
-        Add(GenerateBottomShapeTopFaceVerticalSubdivisoryLinesContours);
-        /* 18 */
-        Add(ModelBottomShapeTopFaceVerticalSubdivisoryLines);
+        ///////////////////////////////////
+        ///// Floor Vertical Internal Supports generation
+        ///////////////////////////////////
+        ///* 15 */
+        //Add(GetInternalBottomShapeTopFace);
+        ///* 16 */
+        //Add(GenerateBottomShapeTopFaceVerticalSubdivisoryLines);
+        ///* 17 */
+        //Add(GenerateBottomShapeTopFaceVerticalSubdivisoryLinesContours);
+        ///* 18 */
+        //Add(ModelBottomShapeTopFaceVerticalSubdivisoryLines);
 
-        /////////////////////////////////
-        /// Floor Horizontal Internal Supports generation
-        /////////////////////////////////
-        /* 19 */
-        Add(GenerateBottomShapeTopFaceHorizontalSubdivisoryLines);
-        /* 20 */
-        Add(GenerateBottomShapeTopFaceHorizontalSubdivisoryLinesIntersectionsWithVerticalSubdivisoryLines);
-        /* 21 */
-        Add(GenerateBottomShapeTopFaceHorizontalSubdivisoryLinesContours);
-        /* 22 */
-        Add(ModelBottomShapeTopFaceHorizontalSubdivisoryLines);
+        ///////////////////////////////////
+        ///// Floor Horizontal Internal Supports generation
+        ///////////////////////////////////
+        ///* 19 */
+        //Add(GenerateBottomShapeTopFaceHorizontalSubdivisoryLines);
+        ///* 20 */
+        //Add(GenerateBottomShapeTopFaceHorizontalSubdivisoryLinesIntersectionsWithVerticalSubdivisoryLines);
+        ///* 21 */
+        //Add(GenerateBottomShapeTopFaceHorizontalSubdivisoryLinesContours);
+        ///* 22 */
+        //Add(ModelBottomShapeTopFaceHorizontalSubdivisoryLines);
 
-        /////////////////////////////////
-        /// Final Output & Fabrication (DXF & PDF)
-        /////////////////////////////////
-        /* 23 */
-        Add(OrderlyPlaceFaces);
-        /* 25 */
-        Add(GetPrintableAreaMetrics);
-        /* 26 */
-        Add(ArrangePiecesInGroups, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
-        /* 27 */
-        Add(GenerateSheetsForArrangedGroups, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
-        /* 28 */
-        Add(ExportSheetsToPDF);
+        ///////////////////////////////////
+        ///// Final Output & Fabrication (DXF & PDF)
+        ///////////////////////////////////
+        ///* 23 */
+        //Add(OrderlyPlaceFaces);
+        ///* 26 */
+        //Add(ArrangePiecesInGroups, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
+        ///* 27 */
+        //Add(GenerateSheetsForArrangedGroups, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
+        ///* 28 */
+        //Add(ExportSheetsToPDF);
 
-        /////////////////////////////////
-        /// Cleanup
-        /////////////////////////////////
-        Add(HideInterestFloor, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
+        ///////////////////////////////////
+        ///// Cleanup
+        ///////////////////////////////////
+        //Add(HideInterestFloor, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
+    }
+
+    /* 1 */
+    public void SetFabricationMetricsAndSettings(List<string> _telemetry)
+    {
+        _dto.UnscaledCardboardThicknessInInternalUnits = UnitUtils.ConvertToInternalUnits(
+            _dto.UnscaledCardboardThicknessInMeters
+            , UnitTypeId.Meters
+            );
+
+        _dto.UnscaledPieceCodeTextSizeInInternalUnits = UnitUtils.ConvertToInternalUnits(
+            _dto.UnscaledPieceCodeTextSizeInMeters
+            , UnitTypeId.Meters
+            );
+
+        _dto.ScaledCardboardThicknessInInternalUnits = UnitUtils.ConvertToInternalUnits(
+            _dto.UnscaledCardboardThicknessInMeters * _dto.FabricationScale
+            , UnitTypeId.Meters
+            );
+        _dto.ScaledYAxisInternalSupportSeparationInInternalUnits = UnitUtils.ConvertToInternalUnits(
+            _dto.UnscaledYAxisInternalSupportSeparationInMeters * _dto.FabricationScale
+            , UnitTypeId.Meters
+            );
+        _dto.ScaledXAxisInternalSupportSeparationInInternalUnits = UnitUtils.ConvertToInternalUnits(
+            _dto.UnscaledXAxisInternalSupportSeparationInMeters * _dto.FabricationScale
+            , UnitTypeId.Meters
+            );
+
+        _dto.UnscaledSheetPrintableHeight = _dto.SheetFamilySymbol.LookupParameter("SheetDrawingAreaHeight")?.AsDouble() ?? 0.0;
+        _dto.UnscaledSheetPrintableWidth = _dto.SheetFamilySymbol.LookupParameter("SheetDrawingAreaWidth")?.AsDouble() ?? 0.0;
+        _dto.UnscaledSheetVerticalMargin = _dto.SheetFamilySymbol.LookupParameter("SheetVerticalMargin")?.AsDouble() ?? 0.0;
+        _dto.UnscaledSheetHorizontalMargin = _dto.SheetFamilySymbol.LookupParameter("SheetHorizontalMargin")?.AsDouble() ?? 0.0;
+
+        _dto.ScaledSheetPrintableHeight = _dto.UnscaledSheetPrintableHeight * _dto.FabricationScale;
+        _dto.ScaledSheetPrintableWidth = _dto.UnscaledSheetPrintableWidth * _dto.FabricationScale;
+        _dto.ScaledSheetVerticalMargin = _dto.UnscaledSheetVerticalMargin * _dto.FabricationScale;
+        _dto.ScaledSheetHorizontalMargin = _dto.UnscaledSheetHorizontalMargin * _dto.FabricationScale;
+
+        _dto.PDFExportOptions = new PDFExportOptions
+        {
+            FileName = _dto.PDFDocumentName,
+            Combine = true,
+            ZoomType = ZoomType.Zoom,
+            ZoomPercentage = 100, // Forces 1:20 scale to be respected instead of fitting to page
+            HideScopeBoxes = true,
+            HideUnreferencedViewTags = true,
+            HideReferencePlane = true,
+            PaperFormat = ExportPaperFormat.Default // Uses the Family dimensions
+        };
     }
 
 
+    /////////////////////////////////
+    /////////////////////////////////
+    /// Get floor data
+    /////////////////////////////////
+    /////////////////////////////////
+
+    /* 2 */
     public void GetInterestFloorDMFADataWorkflow(List<string> _telemetry)
     {
         _dto.InterestFloorDFMAData = RunSubworkflow<
@@ -153,9 +209,9 @@ MultistepObservableAction<GenerateMarkedFloorsDFMASingleItemArgs, GenerateMarked
             new(
                 PieceContour: contour,
                 ExtrusionDirection: XYZ.BasisZ.Negate(),
-                ExtrusionThickness: CARDBOARD_THICKNESS,
+                ExtrusionThickness: _dto.ScaledCardboardThicknessInInternalUnits,
                 DirectShapeName: "BottomFace",
-                HeightAdjustment: CARDBOARD_THICKNESS
+                HeightAdjustment: _dto.ScaledCardboardThicknessInInternalUnits
             )
         );
     }
@@ -170,8 +226,8 @@ MultistepObservableAction<GenerateMarkedFloorsDFMASingleItemArgs, GenerateMarked
         >(
             new(
                 CurveLoop: _dto.InterestFloorDFMAData.BottomFaceOuterCurveLoop!,
-                Offset: CARDBOARD_THICKNESS,
-                HeightAdjustment: CARDBOARD_THICKNESS,
+                Offset: _dto.ScaledCardboardThicknessInInternalUnits,
+                HeightAdjustment: _dto.ScaledCardboardThicknessInInternalUnits,
                 FaceDirection: XYZ.BasisZ.Negate()
             )
         );
@@ -193,9 +249,9 @@ MultistepObservableAction<GenerateMarkedFloorsDFMASingleItemArgs, GenerateMarked
             new(
                 PieceContour: contour,
                 ExtrusionDirection: XYZ.BasisZ.Negate(),
-                ExtrusionThickness: CARDBOARD_THICKNESS,
+                ExtrusionThickness: _dto.ScaledCardboardThicknessInInternalUnits,
                 DirectShapeName: "BottomInternalFace",
-                HeightAdjustment: CARDBOARD_THICKNESS
+                HeightAdjustment: _dto.ScaledCardboardThicknessInInternalUnits
             )
         );
     }
@@ -222,7 +278,7 @@ MultistepObservableAction<GenerateMarkedFloorsDFMASingleItemArgs, GenerateMarked
             new(
                 PieceContour: contour,
                 ExtrusionDirection: XYZ.BasisZ.Negate(),
-                ExtrusionThickness: CARDBOARD_THICKNESS,
+                ExtrusionThickness: _dto.ScaledCardboardThicknessInInternalUnits,
                 DirectShapeName: "TopFace",
                 HeightAdjustment: 0.0
             )
@@ -239,8 +295,8 @@ MultistepObservableAction<GenerateMarkedFloorsDFMASingleItemArgs, GenerateMarked
         >(
             new(
                 CurveLoop: _dto.InterestFloorDFMAData.TopFaceOuterCurveLoop!,
-                Offset: CARDBOARD_THICKNESS,
-                HeightAdjustment: -CARDBOARD_THICKNESS,
+                Offset: _dto.ScaledCardboardThicknessInInternalUnits,
+                HeightAdjustment: -_dto.ScaledCardboardThicknessInInternalUnits,
                 FaceDirection: XYZ.BasisZ
             )
         );
@@ -262,7 +318,7 @@ MultistepObservableAction<GenerateMarkedFloorsDFMASingleItemArgs, GenerateMarked
             new(
                 PieceContour: contour,
                 ExtrusionDirection: XYZ.BasisZ.Negate(),
-                ExtrusionThickness: CARDBOARD_THICKNESS,
+                ExtrusionThickness: _dto.ScaledCardboardThicknessInInternalUnits,
                 DirectShapeName: "TopInternalFace",
                 HeightAdjustment: 0.0
             )
@@ -285,8 +341,8 @@ MultistepObservableAction<GenerateMarkedFloorsDFMASingleItemArgs, GenerateMarked
         >(
             new(
                 CurveLoop: _dto.InterestFloorDFMAData.BottomFaceOuterCurveLoop!,
-                Offset: -CARDBOARD_THICKNESS / 2,
-                HeightAdjustment: CARDBOARD_THICKNESS,
+                Offset: -_dto.ScaledCardboardThicknessInInternalUnits / 2,
+                HeightAdjustment: _dto.ScaledCardboardThicknessInInternalUnits,
                 FaceDirection: XYZ.BasisZ
             )
         );
@@ -302,7 +358,7 @@ MultistepObservableAction<GenerateMarkedFloorsDFMASingleItemArgs, GenerateMarked
         >(
             new(
                 InputLineList: _dto.BottomFaceOffsetOuterCurveLoop,
-                DisplacementThickness: CARDBOARD_THICKNESS,
+                DisplacementThickness: _dto.ScaledCardboardThicknessInInternalUnits,
                 DisplacementValue: 0.0
             )
         );
@@ -310,7 +366,7 @@ MultistepObservableAction<GenerateMarkedFloorsDFMASingleItemArgs, GenerateMarked
 
     public void GenerateBottomFaceOuterCurveLoopDisplacedLinesPiecesContoursCurveLoops(List<string> _telemetry)
     {
-        var pieceHeight = (_dto.InterestFloorDFMAData.TopFaceHighestPoint.Z - _dto.InterestFloorDFMAData.BottomFaceLowestPoint.Z) - CARDBOARD_THICKNESS * 2;
+        var pieceHeight = (_dto.InterestFloorDFMAData.TopFaceHighestPoint.Z - _dto.InterestFloorDFMAData.BottomFaceLowestPoint.Z) - _dto.ScaledCardboardThicknessInInternalUnits * 2;
 
         _dto.BottomFaceOuterCurveLoopDisplacedLinesPiecesContours = GenerateDirectionSharingPieceContours(
                 _dto.BottomFaceOuterCurveLoopDisplacedLines,
@@ -324,7 +380,7 @@ MultistepObservableAction<GenerateMarkedFloorsDFMASingleItemArgs, GenerateMarked
     {
         var pieces = new List<DirectShapeDMFAData>();
 
-        var pieceHeight = (_dto.InterestFloorDFMAData.TopFaceHighestPoint.Z - _dto.InterestFloorDFMAData.BottomFaceLowestPoint.Z) - CARDBOARD_THICKNESS * 2;
+        var pieceHeight = (_dto.InterestFloorDFMAData.TopFaceHighestPoint.Z - _dto.InterestFloorDFMAData.BottomFaceLowestPoint.Z) - _dto.ScaledCardboardThicknessInInternalUnits * 2;
         var contourCount = _dto.BottomFaceOuterCurveLoopDisplacedLinesPiecesContours.Count;
 
         _telemetry.Add($"{nameof(contourCount)}: {contourCount}");
@@ -382,7 +438,7 @@ MultistepObservableAction<GenerateMarkedFloorsDFMASingleItemArgs, GenerateMarked
         >(
             new(
                 FaceToSubdivide: _dto.InternalBottomShapeTopFace,
-                SubdivisionSeparation: INTERNAL_SUPPORTS_SEPARATION_1,
+                SubdivisionSeparation: _dto.ScaledYAxisInternalSupportSeparationInInternalUnits,
                 SubdivisionBasis: SubdivisionAxis.X
             )
         );
@@ -390,7 +446,7 @@ MultistepObservableAction<GenerateMarkedFloorsDFMASingleItemArgs, GenerateMarked
 
     public void GenerateBottomShapeTopFaceVerticalSubdivisoryLinesContours(List<string> _telemetry)
     {
-        var pieceHeight = (_dto.InterestFloorDFMAData.TopFaceHighestPoint.Z - _dto.InterestFloorDFMAData.BottomFaceLowestPoint.Z) - CARDBOARD_THICKNESS * 4;
+        var pieceHeight = (_dto.InterestFloorDFMAData.TopFaceHighestPoint.Z - _dto.InterestFloorDFMAData.BottomFaceLowestPoint.Z) - _dto.ScaledCardboardThicknessInInternalUnits * 4;
 
         _dto.BottomShapeTopFaceVerticalSubdivisoryLinesPiecesContours = GenerateDirectionSharingPieceContours(
                 _dto.BottomShapeTopFaceVerticalSubdivisoryLines,
@@ -411,7 +467,7 @@ MultistepObservableAction<GenerateMarkedFloorsDFMASingleItemArgs, GenerateMarked
     {
         var pieces = new List<DirectShapeDMFAData>();
 
-        var pieceHeight = (_dto.InterestFloorDFMAData.TopFaceHighestPoint.Z - _dto.InterestFloorDFMAData.BottomFaceLowestPoint.Z) - CARDBOARD_THICKNESS * 4;
+        var pieceHeight = (_dto.InterestFloorDFMAData.TopFaceHighestPoint.Z - _dto.InterestFloorDFMAData.BottomFaceLowestPoint.Z) - _dto.ScaledCardboardThicknessInInternalUnits * 4;
         var contourCount = _dto.BottomShapeTopFaceVerticalSubdivisoryLinesPiecesContours.Count;
 
         _telemetry.Add($"BottomShapeTopFaceVerticalSubdivisoryLinesPiecesContoursCount: {contourCount}");
@@ -449,7 +505,7 @@ MultistepObservableAction<GenerateMarkedFloorsDFMASingleItemArgs, GenerateMarked
         >(
             new(
                 FaceToSubdivide: _dto.InternalBottomShapeTopFace,
-                SubdivisionSeparation: INTERNAL_SUPPORTS_SEPARATION_2,
+                SubdivisionSeparation: _dto.ScaledXAxisInternalSupportSeparationInInternalUnits,
                 SubdivisionBasis: SubdivisionAxis.Y
             )
         );
@@ -514,7 +570,7 @@ MultistepObservableAction<GenerateMarkedFloorsDFMASingleItemArgs, GenerateMarked
 
     public void GenerateBottomShapeTopFaceHorizontalSubdivisoryLinesContours(List<string> _telemetry)
     {
-        var pieceHeight = (_dto.InterestFloorDFMAData.TopFaceHighestPoint.Z - _dto.InterestFloorDFMAData.BottomFaceLowestPoint.Z) - CARDBOARD_THICKNESS * 4;
+        var pieceHeight = (_dto.InterestFloorDFMAData.TopFaceHighestPoint.Z - _dto.InterestFloorDFMAData.BottomFaceLowestPoint.Z) - _dto.ScaledCardboardThicknessInInternalUnits * 4;
 
         _dto.BottomShapeTopFaceHorizontalSubdivisoryLinesPiecesContours = GenerateDirectionSharingPieceContours(
                 _dto.BottomShapeTopFaceFinalHorizontalSubdivisoryLines,
@@ -550,7 +606,7 @@ MultistepObservableAction<GenerateMarkedFloorsDFMASingleItemArgs, GenerateMarked
             >(
                 new(
                     InputLine: item,
-                    ContourThickness: CARDBOARD_THICKNESS,
+                    ContourThickness: _dto.ScaledCardboardThicknessInInternalUnits,
                     ContourWorkplaneAlignmentOption: contourWorkplaneAlignmentOption,
                     VerticalContourHeight: pieceHeight
                 )
@@ -566,7 +622,7 @@ MultistepObservableAction<GenerateMarkedFloorsDFMASingleItemArgs, GenerateMarked
     {
         var pieces = new List<DirectShapeDMFAData>();
 
-        var pieceHeight = (_dto.InterestFloorDFMAData.TopFaceHighestPoint.Z - _dto.InterestFloorDFMAData.BottomFaceLowestPoint.Z) - CARDBOARD_THICKNESS * 4;
+        var pieceHeight = (_dto.InterestFloorDFMAData.TopFaceHighestPoint.Z - _dto.InterestFloorDFMAData.BottomFaceLowestPoint.Z) - _dto.ScaledCardboardThicknessInInternalUnits * 4;
         var contourCount = _dto.BottomShapeTopFaceHorizontalSubdivisoryLinesPiecesContours.Count;
 
         _telemetry.Add($"BottomShapeTopFaceHorizontalSubdivisoryLinesPiecesContoursCount: {contourCount}");
@@ -609,7 +665,7 @@ MultistepObservableAction<GenerateMarkedFloorsDFMASingleItemArgs, GenerateMarked
         }
         else if (contour.ContourWorkplaneAlignmentOption.Equals(ContourWorkplaneAlignmentOptions.ZAndCustomAngle))
         {
-            extrusionThickness = CARDBOARD_THICKNESS;
+            extrusionThickness = _dto.ScaledCardboardThicknessInInternalUnits;
         }
 
         if (negateDirection)
@@ -660,29 +716,13 @@ MultistepObservableAction<GenerateMarkedFloorsDFMASingleItemArgs, GenerateMarked
                     .Concat(_dto.ExternalVerticalFacesDirectShapeDMFADataList)
                     .ToList(),
                 ExtrusionDirection: XYZ.BasisZ.Negate(),
-                ExtrusionThickness: CARDBOARD_THICKNESS,
+                ExtrusionThickness: _dto.ScaledCardboardThicknessInInternalUnits,
                 InitialX: -10.0,
                 InitialY: -10.0
             )
         );
 
         _telemetry.Add($"Total pieces placed at start point: {_dto.PiecesPlacedAtStartPoint.Count}");
-    }
-
-    public void GetPrintableAreaMetrics(List<string> _telemetry)
-    {
-        if (_dto?.SheetFamilySymbol == null)
-        {
-            _telemetry?.Add("Warning: SheetFamilySymbol in DTO is null. Metrics set to 0.0.");
-            return;
-        }
-
-        _dto.SheetPrintableHeight = _dto.SheetFamilySymbol.LookupParameter("SheetDrawingAreaHeight")?.AsDouble() ?? 0.0;
-        _dto.SheetPrintableWidth = _dto.SheetFamilySymbol.LookupParameter("SheetDrawingAreaWidth")?.AsDouble() ?? 0.0;
-        _dto.SheetVerticalMargin = _dto.SheetFamilySymbol.LookupParameter("SheetVerticalMargin")?.AsDouble() ?? 0.0;
-        _dto.SheetHorizontalMargin = _dto.SheetFamilySymbol.LookupParameter("SheetHorizontalMargin")?.AsDouble() ?? 0.0;
-
-        _telemetry?.Add($"Metrics extracted: {nameof(_dto.SheetPrintableHeight)}: {_dto.SheetPrintableWidth}, {nameof(_dto.SheetPrintableWidth)}: {_dto.SheetPrintableHeight}");
     }
 
     public void ArrangePiecesInGroups(List<string> _telemetry)
@@ -702,9 +742,9 @@ MultistepObservableAction<GenerateMarkedFloorsDFMASingleItemArgs, GenerateMarked
         _dto.ArrangedSheets = new List<List<DirectShapeDMFAData>>();
         var currentSheetGroup = new List<DirectShapeDMFAData>();
 
-        // Apply SCALE factor to the printable area metrics so the physical geometry fits
-        double widthLimit = _dto.SheetPrintableWidth > 0 ? _dto.SheetPrintableWidth * SCALE : 35.0 * SCALE;
-        double heightLimit = _dto.SheetPrintableHeight > 0 ? _dto.SheetPrintableHeight * SCALE : 25.0 * SCALE;
+        // Apply _dto.FabricationScale factor to the printable area metrics so the physical geometry fits
+        double widthLimit = _dto.ScaledSheetPrintableWidth;
+        double heightLimit = _dto.ScaledSheetPrintableHeight;
 
         // Define proportional, tightly packed layout gaps
         double itemGap = 1.0;
@@ -853,8 +893,9 @@ MultistepObservableAction<GenerateMarkedFloorsDFMASingleItemArgs, GenerateMarked
         if (_dto.GeneratedSheetIds == null)
             _dto.GeneratedSheetIds = new List<ElementId>();
 
-        double sheetCenterX = _dto.SheetHorizontalMargin + (_dto.SheetPrintableWidth / 2.0);
-        double sheetCenterY = _dto.SheetVerticalMargin + (_dto.SheetPrintableHeight / 2.0);
+        double sheetCenterX = _dto.ScaledSheetHorizontalMargin + (_dto.ScaledSheetPrintableWidth / 2.0);
+        double sheetCenterY = _dto.ScaledSheetVerticalMargin + (_dto.ScaledSheetPrintableHeight / 2.0);
+
         XYZ sheetPlacementPoint = new XYZ(sheetCenterX, sheetCenterY, 0);
 
         ViewFamilyType view3DType = new FilteredElementCollector(doc)
@@ -881,7 +922,7 @@ MultistepObservableAction<GenerateMarkedFloorsDFMASingleItemArgs, GenerateMarked
             {
                 smallTextType = defaultTextType.Duplicate("DFMA_Small_Label") as TextNoteType;
                 // Set text size to 1.5mm (1/16") which is approx 0.0052 feet in internal units
-                smallTextType.get_Parameter(BuiltInParameter.TEXT_SIZE)?.Set(0.005);
+                smallTextType.get_Parameter(BuiltInParameter.TEXT_SIZE)?.Set(_dto.UnscaledPieceCodeTextSizeInInternalUnits);
             }
         }
 
@@ -905,8 +946,8 @@ MultistepObservableAction<GenerateMarkedFloorsDFMASingleItemArgs, GenerateMarked
             sheet.SheetNumber = $"FAB-{sheetCount + 1:D3}";
 
             View3D view = View3D.CreateIsometric(doc, view3DType.Id);
-            double viewScale = 20.0;
-            view.Scale = (int)viewScale;
+
+            view.Scale = (int)_dto.FabricationScale;
 
             ViewOrientation3D topOrientation = new ViewOrientation3D(
                 XYZ.BasisZ,
@@ -954,8 +995,8 @@ MultistepObservableAction<GenerateMarkedFloorsDFMASingleItemArgs, GenerateMarked
 
                         XYZ pieceCenter3D = new XYZ((minX + maxX) / 2.0, (minY + maxY) / 2.0, 0);
 
-                        double sheetOffsetX = (pieceCenter3D.X - combinedCenter.X) / viewScale;
-                        double sheetOffsetY = (pieceCenter3D.Y - combinedCenter.Y) / viewScale;
+                        double sheetOffsetX = (pieceCenter3D.X - combinedCenter.X) / _dto.FabricationScale;
+                        double sheetOffsetY = (pieceCenter3D.Y - combinedCenter.Y) / _dto.FabricationScale;
 
                         XYZ textSheetLocation = new XYZ(
                             sheetPlacementPoint.X + sheetOffsetX,
@@ -987,6 +1028,7 @@ MultistepObservableAction<GenerateMarkedFloorsDFMASingleItemArgs, GenerateMarked
     {
         double minX = double.MaxValue, minY = double.MaxValue, minZ = double.MaxValue;
         double maxX = double.MinValue, maxY = double.MinValue, maxZ = double.MinValue;
+
         bool found = false;
 
         foreach (var piece in pieceGroup)
@@ -994,9 +1036,11 @@ MultistepObservableAction<GenerateMarkedFloorsDFMASingleItemArgs, GenerateMarked
             if (piece.DirectShape == null) continue;
 
             BoundingBoxXYZ bbox = piece.DirectShape.get_BoundingBox(view);
+
             if (bbox != null)
             {
                 found = true;
+
                 minX = Math.Min(minX, bbox.Min.X);
                 minY = Math.Min(minY, bbox.Min.Y);
                 minZ = Math.Min(minZ, bbox.Min.Z);
@@ -1018,36 +1062,17 @@ MultistepObservableAction<GenerateMarkedFloorsDFMASingleItemArgs, GenerateMarked
 
     public void ExportSheetsToPDF(List<string> _telemetry)
     {
-        if (_dto.GeneratedSheetIds == null || !_dto.GeneratedSheetIds.Any())
-        {
-            _telemetry.Add("No sheets were generated to export.");
-            return;
-        }
-
-        string fileName = "DFMA_Fabrication_Sheets";
-
         try
         {
-            PDFExportOptions pdfOptions = new PDFExportOptions
-            {
-                FileName = fileName,
-                Combine = true,
-                ZoomType = ZoomType.Zoom,
-                ZoomPercentage = 100, // Forces 1:20 scale to be respected instead of fitting to page
-                HideScopeBoxes = true,
-                HideUnreferencedViewTags = true,
-                HideReferencePlane = true,
-                PaperFormat = ExportPaperFormat.Default // Uses the Letter_Sheet_001 dimensions
-            };
+            _doc!.Export(_dto.PDFExportPath, _dto.GeneratedSheetIds, _dto.PDFExportOptions);
 
-            // Execute the native Revit API PDF Export
-            _doc.Export(EXPORT_FOLDER_PATH, _dto.GeneratedSheetIds, pdfOptions);
-
-            _telemetry.Add($"Successfully exported {_dto.GeneratedSheetIds.Count} sheets to PDF at: {EXPORT_FOLDER_PATH}\\{fileName}.pdf");
+            _telemetry.Add($"Successfully exported {_dto.GeneratedSheetIds.Count} sheets to PDF at: {_dto.PDFExportPath}\\{_dto.PDFDocumentName}.pdf");
         }
         catch (System.Exception ex)
         {
             _telemetry.Add($"Failed to export PDF: {ex.Message}");
+
+            throw;
         }
     }
 
@@ -1091,10 +1116,94 @@ MultistepObservableAction<GenerateMarkedFloorsDFMASingleItemArgs, GenerateMarked
 
 public class GenerateMarkedFloorsDFMASingleItemDto : Dto
 {
-    public Floor InterestFloor { get; set; }
+    /////////////////////////////////
+    /// Fabrication metrics and settings setup
+    /////////////////////////////////
 
+    [Print(nameof(TypeFormatter.Integer))]
+    public int FabricationScale { get; set; }
+
+    [Print(nameof(TypeFormatter.Double))]
+    public double UnscaledCardboardThicknessInMeters { get; set; }
+
+    [Print(nameof(TypeFormatter.Double))]
+    public double UnscaledYAxisInternalSupportSeparationInMeters { get; set; }
+
+    [Print(nameof(TypeFormatter.Double))]
+    public double UnscaledXAxisInternalSupportSeparationInMeters { get; set; }
+
+    [Print(nameof(TypeFormatter.Double))]
+    public double UnscaledPieceCodeTextSizeInMeters { get; set; }
+
+    [Print(nameof(TypeFormatter.String))]
+    public string? PDFExportPath { get; set; }
+
+
+    [Print(nameof(TypeFormatter.Double))]
+    public double UnscaledCardboardThicknessInInternalUnits { get; set; }
+
+    [Print(nameof(TypeFormatter.Double))]
+    public double ScaledCardboardThicknessInInternalUnits { get; set; }
+
+    [Print(nameof(TypeFormatter.Double))]
+    public double ScaledYAxisInternalSupportSeparationInInternalUnits { get; set; }
+
+    [Print(nameof(TypeFormatter.Double))]
+    public double ScaledXAxisInternalSupportSeparationInInternalUnits { get; set; }
+
+    [Print(nameof(TypeFormatter.Double))]
+    public double UnscaledPieceCodeTextSizeInInternalUnits { get; set; }
+
+
+    [Print(nameof(TypeFormatter.FamilySymbol))]
+    public FamilySymbol? CommonCarboardFamilySymbol { get; set; }
+
+    [Print(nameof(TypeFormatter.FamilySymbol))]
+    public FamilySymbol? SheetFamilySymbol { get; set; }
+
+    [Print(nameof(TypeFormatter.Double))]
+    public double UnscaledSheetPrintableHeight { get; set; }
+
+    [Print(nameof(TypeFormatter.Double))]
+    public double UnscaledSheetVerticalMargin { get; set; }
+
+    [Print(nameof(TypeFormatter.Double))]
+    public double UnscaledSheetPrintableWidth { get; set; }
+
+    [Print(nameof(TypeFormatter.Double))]
+    public double UnscaledSheetHorizontalMargin { get; set; }
+
+    [Print(nameof(TypeFormatter.Double))]
+    public double ScaledSheetPrintableHeight { get; set; }
+
+    [Print(nameof(TypeFormatter.Double))]
+    public double ScaledSheetVerticalMargin { get; set; }
+
+    [Print(nameof(TypeFormatter.Double))]
+    public double ScaledSheetPrintableWidth { get; set; }
+
+    [Print(nameof(TypeFormatter.Double))]
+    public double ScaledSheetHorizontalMargin { get; set; }
+
+
+    [Print(nameof(TypeFormatter.String))]
+    public string? PDFDocumentName { get; set; }
+
+    [Print(nameof(TypeFormatter.PDFExportOptions))]
+    public PDFExportOptions? PDFExportOptions { get; set; }
+
+
+
+    /////////////////////////////////
+    /// Floor Data Extraction
+    /////////////////////////////////
+    public Floor InterestFloor { get; set; }
     public FloorDFMAData InterestFloorDFMAData { get; set; }
 
+
+    /////////////////////////////////
+    /// Floor Data
+    /////////////////////////////////
     public List<Line> BottomFaceOuterCurveLoopInternalOffsetBoundary { get; set; }
     public List<Line> TopFaceOuterCurveLoopInternalOffsetBoundary { get; set; }
 
@@ -1125,14 +1234,6 @@ public class GenerateMarkedFloorsDFMASingleItemDto : Dto
 
 
 
-    public FamilySymbol CommonCarboardFamilySymbol { get; set; }
-
-
-    public FamilySymbol SheetFamilySymbol { get; set; }
-    public double SheetPrintableHeight { get; set; }
-    public double SheetVerticalMargin { get; set; }
-    public double SheetPrintableWidth { get; set; }
-    public double SheetHorizontalMargin { get; set; }
     public List<List<DirectShapeDMFAData>> ArrangedSheets { get; set; }
     public List<ElementId> GeneratedSheetIds { get; set; }
 }

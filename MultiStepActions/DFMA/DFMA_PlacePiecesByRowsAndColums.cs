@@ -1,4 +1,5 @@
 ﻿using Autodesk.Revit.DB;
+using Eobim.RevitApi.DFMA;
 using Eobim.RevitApi.Framework;
 
 namespace Eobim.RevitApi.MultiStepActions;
@@ -11,8 +12,9 @@ public record DFMA_PlacePiecesByRowsAndColumsArgs(
     double InitialY
 );
 
-public class DFMA_PlacePiecesByRowsAndColums(Document doc, string workflowName)
-    : MultistepObservableAction<DFMA_PlacePiecesByRowsAndColumsArgs, DFMA_PlacePiecesByRowsAndColumsDto, List<DirectShapeDMFAData>>(doc, workflowName)
+public class DFMA_PlacePiecesByRowsAndColums(Document doc, string parentActionName, int actionCounter, int? iterativeActionCounter = null)
+    : 
+MultistepObservableAction<DFMA_PlacePiecesByRowsAndColumsArgs, DFMA_PlacePiecesByRowsAndColumsDto, List<DirectShapeDMFAData>>(doc, parentActionName, actionCounter, iterativeActionCounter)
 {
     public override void SafelyInitializeInputs(DFMA_PlacePiecesByRowsAndColumsArgs args)
     {

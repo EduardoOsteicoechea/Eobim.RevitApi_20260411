@@ -12,11 +12,13 @@ public record DirectShape_ModelPlanarByBoundaryLinesArgs(
     double HeightAdjustment = 0.0
 );
 
-public class DirectShape_ModelPlanarByBoundaryLines(Document doc, string workflowName) : MultistepObservableAction<
-    DirectShape_ModelPlanarByBoundaryLinesArgs,
-    DirectShape_ModelByBoundaryLinesDto,
-    DirectShapeDMFAData
-    >(doc, workflowName)
+public class DirectShape_ModelPlanarByBoundaryLines(Document doc, string parentActionName, int actionCounter, int? iterativeActionCounter = null)
+    : 
+    MultistepObservableAction<
+        DirectShape_ModelPlanarByBoundaryLinesArgs,
+        DirectShape_ModelByBoundaryLinesDto,
+        DirectShapeDMFAData
+    >(doc, parentActionName, actionCounter, iterativeActionCounter)
 {
     public override void SafelyInitializeInputs(DirectShape_ModelPlanarByBoundaryLinesArgs args)
     {

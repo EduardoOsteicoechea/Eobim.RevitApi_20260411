@@ -5,8 +5,9 @@ namespace Eobim.RevitApi.MultiStepActions;
 
 public record Face_SubdivideInInternalLinesArgs(Face FaceToSubdivide, double SubdivisionSeparation, SubdivisionAxis SubdivisionBasis);
 
-public class Face_SubdivideInInternalLines(Document doc, string workflowName)
-    : MultistepObservableAction<Face_SubdivideInInternalLinesArgs, Face_SubdivideInInternalLinesDto, List<Line>>(doc, workflowName)
+public class Face_SubdivideInInternalLines(Document doc, string parentActionName, int actionCounter, int? iterativeActionCounter = null)
+    : 
+MultistepObservableAction<Face_SubdivideInInternalLinesArgs, Face_SubdivideInInternalLinesDto, List<Line>>(doc, parentActionName, actionCounter, iterativeActionCounter)
 {
     // ------------------------------------------------------------------------
     // HELPER METHODS FOR A/B ABSTRACTION

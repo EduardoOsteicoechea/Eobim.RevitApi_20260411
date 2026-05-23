@@ -1582,7 +1582,7 @@ public static class TypeFormatter
     }
     public static string Double(double data)
     {
-        return $"{data.ToString("F2", CultureInfo.InvariantCulture)}";
+        return $"{data.ToString("F4", CultureInfo.InvariantCulture)}";
     }
     public static string Integer(int data)
     {
@@ -1593,6 +1593,12 @@ public static class TypeFormatter
         return $"{data.ToString()}";
     }
     public static string String(string data)
+    {
+        if (data == null) return "[null]";
+
+        return $"{data}";
+    }
+    public static string PDFExportOptions(PDFExportOptions data)
     {
         if (data == null) return "[null]";
 

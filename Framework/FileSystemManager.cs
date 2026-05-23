@@ -1,60 +1,82 @@
-using System.IO;
+//using System.IO;
 
-namespace Eobim.RevitApi.Framework;
+//namespace Eobim.RevitApi.Framework;
 
-public class FileSystemManager
-{
-    private readonly string _mainLogDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Eobim.Logs");
-    private readonly string _documentLogDirectory;
-    private readonly string _workflowLogDirectory;
-    private string _commandName { get; set; }
-    private string _multistepActionName { get; set; } = "";
-    private string _logFilePath;
 
-    public FileSystemManager(string revitDocumentTitle, string commandName)
-    {
-        _documentLogDirectory = Path.Combine(_mainLogDirectory, revitDocumentTitle);
-        _workflowLogDirectory = Path.Combine(_documentLogDirectory, commandName);
-        _commandName = commandName;
-        _logFilePath = Path.Combine(_workflowLogDirectory, $"{_commandName}.json");
+//public class TelemetryFileSystemManager 
+//{
+//    private readonly string _mainLogDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Eobim.Logs");
+//    protected string _revitDocumentLogDirectory { get; set; }
+//    public string InstanceLogDirectory { get; set; }
+//    protected string _actionName { get; set; }
 
-        ValidateLogDirectory();
-    }
+//    public TelemetryFileSystemManager(string revitDocumentTitle, string actionName) 
+//    {
+//        _revitDocumentLogDirectory = Path.Combine(_mainLogDirectory, revitDocumentTitle);
+//        _actionName = actionName;
+//    }
 
-    public FileSystemManager(string revitDocumentTitle, string commandName, string multistepActionName)
-    {
-        _documentLogDirectory = Path.Combine(_mainLogDirectory, revitDocumentTitle);
-        _workflowLogDirectory = Path.Combine(_documentLogDirectory, commandName);
-        _commandName = commandName;
-        _multistepActionName = multistepActionName;
-        _logFilePath = Path.Combine(_workflowLogDirectory, $"{commandName}_{multistepActionName}.json");
+//    protected static void SafelyDeleteAndRecreateDirectory(string path)
+//    {
+//        try
+//        {
+//            if (Directory.Exists(path))
+//            {
+//                Directory.Delete(path, true);
+//            }
 
-        ValidateLogDirectory();
-    }
+//            Directory.CreateDirectory(path);
+//        }
+//        catch (Exception ex)
+//        {
+//            System.Windows.MessageBox.Show
+//            (
+//                $"Failed to delete existing log directory: {ex.Message}",
+//                "Error",
+//                System.Windows.MessageBoxButton.OK,
+//                System.Windows.MessageBoxImage.Error
+//            );
 
-    private void ValidateLogDirectory()
-    {
-        var targetDirectory = Path.GetDirectoryName(_logFilePath);
+//            throw;
+//        }
+//    }
 
-        if (!string.IsNullOrEmpty(targetDirectory) && !Directory.Exists(targetDirectory))
-        {
-            Directory.CreateDirectory(targetDirectory);
-        }
-    }
+//    public void WriteTelemetryFile(string? content, int workflowNumber)
+//    {
+//        //var finalLogfilePath = Path.Combine(InstanceLogDirectory, $"{workflowNumber}_{_actionName}.json");
+//        var finalLogfilePath = Path.Combine(InstanceLogDirectory, $"{_actionName}.json");
 
-    public void WriteTelemetryFile(string? content, int workflowNumber)
-    {
-        var finalLogfilePath = _logFilePath;
+//        File.WriteAllText(finalLogfilePath, content ?? "Empty");
+//    }
+//}
 
-        if (_multistepActionName.Equals(""))
-        {
-            finalLogfilePath = Path.Combine(_workflowLogDirectory, $"{workflowNumber}_{_commandName}.json");
-        }
-        else
-        {
-            finalLogfilePath = Path.Combine(_workflowLogDirectory, $"{workflowNumber}_{_commandName}_{_multistepActionName}.json");
-        }
+//public class ExternalCommandTelemetryFileSystemManager: TelemetryFileSystemManager
+//{
+//    public ExternalCommandTelemetryFileSystemManager(string revitDocumentTitle, string actionName)
+//        : 
+//    base(revitDocumentTitle, actionName)
+//    {
+//        InstanceLogDirectory = Path.Combine(_revitDocumentLogDirectory, actionName);
 
-        File.WriteAllText(finalLogfilePath, content ?? "Empty");
-    }
-}
+//        SafelyDeleteAndRecreateDirectory(InstanceLogDirectory);
+//    }
+//}
+
+//public class SubworkflowTelemetryFileSystemManager: TelemetryFileSystemManager
+//{
+//    public SubworkflowTelemetryFileSystemManager(string revitDocumentTitle, string parentActionLogDirectoryPath, string actionName, int actionNumber, int? iterativeActionCounter = null) 
+//        : 
+//    base(revitDocumentTitle, actionName)
+//    {
+//        if (iterativeActionCounter is null)
+//        {
+//            InstanceLogDirectory = Path.Combine(parentActionLogDirectoryPath, $"{actionNumber}_{actionName}");
+//        }
+//        else
+//        {
+//            InstanceLogDirectory = Path.Combine(parentActionLogDirectoryPath, $"{iterativeActionCounter}_{actionNumber}_{actionName}");
+//        }
+
+//        SafelyDeleteAndRecreateDirectory(InstanceLogDirectory);
+//    }
+//}

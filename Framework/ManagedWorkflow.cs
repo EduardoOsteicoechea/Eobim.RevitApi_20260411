@@ -6,6 +6,32 @@ using System.Text.Json;
 namespace Eobim.RevitApi.Framework;
 
 
+//public abstract class MultistepObservableAction<TArgs, Dto, TResult>
+//    :
+//ManagedWorkflow<TArgs, Dto, TResult>,
+//ISubworkflow<TArgs, Dto, TResult>
+//where Dto : class, IDto, new()
+//{
+//    // Because this is instantiated inside an already running ExternalCommand, the Document is already available.
+//    public MultistepObservableAction(Document doc, string parentWorkflowPath, int actionCounter, int? iterativeActionCounter = null)
+//    {
+//        if (doc is null) throw new ArgumentNullException(nameof(doc), "Please provide a valid Revit Document before running this workflow.");
+
+//        _doc = doc;
+
+//        _workflowName = this.GetType().Name;
+
+//        _workflowObservableData = new WorkflowObservableData
+//        {
+//            DocumentTitle = _doc!.Title,
+//            WorkflowName = _workflowName,
+//        };
+
+//        _fileSystemManager = new SubworkflowTelemetryFileSystemManager(_doc.Title, parentWorkflowPath, _workflowName, actionCounter, iterativeActionCounter);
+//    }
+//}
+
+
 public abstract class MultistepObservableAction<TArgs, Dto, TResult>
     :
 ManagedWorkflow<TArgs, Dto, TResult>,
@@ -13,12 +39,11 @@ ISubworkflow<TArgs, Dto, TResult>
 where Dto : class, IDto, new()
 {
     // Because this is instantiated inside an already running ExternalCommand, the Document is already available.
-    public MultistepObservableAction(Document doc, string parentWorkflowPath, int actionCounter, int? iterativeActionCounter = null)
+    public void InitializeFrameworkContext(Document doc, string parentWorkflowPath, int actionCounter, int? iterativeActionCounter = null)
     {
         if (doc is null) throw new ArgumentNullException(nameof(doc), "Please provide a valid Revit Document before running this workflow.");
 
         _doc = doc;
-
         _workflowName = this.GetType().Name;
 
         _workflowObservableData = new WorkflowObservableData
@@ -188,8 +213,17 @@ where Dto : class, IDto, new()
     }
 }
 
+//public interface ISubworkflow<TArgs, Dto, TResult>
+//{
+//    public void SafelyInitializeInputs(TArgs args);
+//    public void Execute(int executedActionCounter);
+//    public void StopWorkflow(string message);
+//    public TResult Result { get; set; }
+//}
+
 public interface ISubworkflow<TArgs, Dto, TResult>
 {
+    void InitializeFrameworkContext(Document doc, string parentWorkflowPath, int actionCounter, int? iterativeActionCounter = null);
     public void SafelyInitializeInputs(TArgs args);
     public void Execute(int executedActionCounter);
     public void StopWorkflow(string message);
@@ -254,44 +288,77 @@ public abstract class ManagedWorkflow<TArgs, Dto, TResult>
         }
     }
 
+    //protected virtual UResult RunSubworkflow<TSWArgs, TSubworkflow, TSubDto, UResult>(TSWArgs args, int? iterationCounter = null)
+    //where TSubworkflow : ISubworkflow<TSWArgs, TSubDto, UResult>
+    //where TSubDto : class, IDto, new()
+    //{
+    //    Type subworkflowType = typeof(TSubworkflow);
+
+    //    dynamic? subWorkflow = null;
+
+    //    try
+    //    {
+    //        subWorkflow = (TSubworkflow)Activator.CreateInstance(subworkflowType, [
+    //            _doc!, 
+    //            _fileSystemManager.InstanceLogDirectory,
+    //            _executedActionCounter,
+    //            iterationCounter
+    //            ]);
+    //    }
+    //    catch (Exception ex)
+    //    {
+    //        ReportUnmanagedFailure($"Failed to instantiate {subworkflowType.Name}", $"{subworkflowType.Name}");
+
+    //        throw;
+    //    }
+
+    //    if (subWorkflow is null) throw new NullReferenceException($"null {nameof(subworkflowType)}: {subworkflowType.Name}");
+
+    //    subWorkflow!.SafelyInitializeInputs(args);
+
+    //    subWorkflow.Execute(_executedActionCounter);
+
+    //    if (subWorkflow.Result is null)
+    //    {
+    //        throw new NullReferenceException($"null result in {subWorkflow.GetType().FullName}");
+    //    }
+    //    else
+    //    {
+    //        return subWorkflow.Result;
+    //    }
+    //}
+
     protected virtual UResult RunSubworkflow<TSWArgs, TSubworkflow, TSubDto, UResult>(TSWArgs args, int? iterationCounter = null)
-    where TSubworkflow : ISubworkflow<TSWArgs, TSubDto, UResult>
+    where TSubworkflow : ISubworkflow<TSWArgs, TSubDto, UResult>, new() // <-- Note the new() constraint
     where TSubDto : class, IDto, new()
     {
         Type subworkflowType = typeof(TSubworkflow);
-
-        dynamic? subWorkflow = null;
+        TSubworkflow subWorkflow;
 
         try
         {
-            subWorkflow = (TSubworkflow)Activator.CreateInstance(subworkflowType, [
-                _doc!, 
-                _fileSystemManager.InstanceLogDirectory,
-                _executedActionCounter,
-                iterationCounter
-                ]);
+            // 1. Instantiate cleanly with NO arguments
+            subWorkflow = Activator.CreateInstance<TSubworkflow>();
         }
         catch (Exception ex)
         {
             ReportUnmanagedFailure($"Failed to instantiate {subworkflowType.Name}", $"{subworkflowType.Name}");
-
             throw;
         }
 
-        if (subWorkflow is null) throw new NullReferenceException($"null {nameof(subworkflowType)}: {subworkflowType.Name}");
+        // 2. Inject the framework variables immediately
+        subWorkflow.InitializeFrameworkContext(_doc!, _fileSystemManager!.InstanceLogDirectory, _executedActionCounter, iterationCounter);
 
-        subWorkflow!.SafelyInitializeInputs(args);
-
+        // 3. Proceed as normal
+        subWorkflow.SafelyInitializeInputs(args);
         subWorkflow.Execute(_executedActionCounter);
 
         if (subWorkflow.Result is null)
         {
             throw new NullReferenceException($"null result in {subWorkflow.GetType().FullName}");
         }
-        else
-        {
-            return subWorkflow.Result;
-        }
+
+        return subWorkflow.Result;
     }
 
     public void Execute(int executedActionCounter = 0)

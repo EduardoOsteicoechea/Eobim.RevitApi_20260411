@@ -3,6 +3,7 @@ using Autodesk.Revit.DB;
 using Autodesk.Revit.DB.Architecture;
 using Autodesk.Revit.UI.Selection;
 using Eobim.RevitApi.Framework;
+using Eobim.RevitApi.MultiStepActions;
 using Eobim.RevitApi.SelectionFilter;
 
 namespace Eobim.RevitApi.Commands;
@@ -14,12 +15,13 @@ public class DynamicFLoorPlanOptionGeneration : ExternalCommand<object, DynamicF
     protected override void SetActions()
     {
         Add(GetAllColumns);
-        Add(GetSubdivisibleRooms);
+        Add(GetSubdivisibleAreas);
+        //Add(GetSubdivisibleRooms);
         Add(PromptUserToPickRoom);
-        Add(MatchSelectedSubdivisibleRoomWithInsideColumns);
-        Add(GetSelectedRoomContourSegments);
-        Add(PlaceEnclosingModelLines, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
-        Add(SetResult);
+        Add(ValidateSelectedRoomMatchWithSubdivisibleArea);
+        //Add(GetSelectedRoomContourSegments);
+        //Add(PlaceEnclosingModelLines, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
+        //Add(SetResult);
     }
 
     public void GetAllColumns(List<string> _telemetry)
@@ -42,24 +44,44 @@ public class DynamicFLoorPlanOptionGeneration : ExternalCommand<object, DynamicF
         }
     }
 
-    public void GetSubdivisibleRooms(List<string> _telemetry)
+    //public void GetSubdivisibleRooms(List<string> _telemetry)
+    //{
+    //    var result = new FilteredElementCollector(_doc!)
+    //        .WhereElementIsNotElementType()
+    //        .OfCategory(BuiltInCategory.OST_Rooms)
+    //        .Where(a => a.Name.Contains("subdivisible"))
+    //        .Cast<Room>()
+    //        .ToList();
+
+    //    if (result is null)
+    //    {
+    //        throw new ArgumentException("No subdivisible rooms found.");
+    //    }
+    //    else
+    //    {
+    //        _telemetry.Add($"{result.Count} subdivisible rooms found.");
+
+    //        _dto.SubdivisibleRooms = result;
+    //    }
+    //}
+
+    public void GetSubdivisibleAreas(List<string> _telemetry)
     {
         var result = new FilteredElementCollector(_doc!)
             .WhereElementIsNotElementType()
-            .OfCategory(BuiltInCategory.OST_Rooms)
+            .OfCategory(BuiltInCategory.OST_Areas)
             .Where(a => a.Name.Contains("subdivisible"))
-            .Cast<Room>()
+            .Cast<Area>()
             .ToList();
 
         if (result is null)
         {
-            throw new ArgumentException("No subdivisible rooms found.");
+            throw new ArgumentException("No subdivisible areas found.");
         }
         else
         {
-            _telemetry.Add($"{result.Count} subdivisible rooms found.");
-
-            _dto.SubdivisibleRooms = result;
+            _telemetry.Add($"{result.Count} subdivisible areas found.");
+            _dto.SubdivisibleAreas = result;
         }
     }
 
@@ -67,9 +89,9 @@ public class DynamicFLoorPlanOptionGeneration : ExternalCommand<object, DynamicF
     {
         var uidoc = _commandData.Application.ActiveUIDocument;
 
-        var selectionFilter = new RoomSelectionFilterByName("subdivisible");
+        var selectionFilter = new RoomSelectionFilter();
 
-        var pickedReference = uidoc.Selection.PickObject(ObjectType.Element, selectionFilter, "Select a subdivisible room");
+        var pickedReference = uidoc.Selection.PickObject(ObjectType.Element, selectionFilter, "Select a room");
 
         var room = uidoc.Document.GetElement(pickedReference) as Room;
 
@@ -85,21 +107,35 @@ public class DynamicFLoorPlanOptionGeneration : ExternalCommand<object, DynamicF
         }
     }
 
-    public void MatchSelectedSubdivisibleRoomWithInsideColumns(List<string> _telemetry)
-    {
-        var result = FindColumnsInsideRoom(_dto.SelectedRoom, _dto.Columns);
+    //public void MatchSelectedSubdivisibleAreaWithInsideColumns(List<string> _telemetry)
+    //{
+    //    var result = FindColumnsInsideAreas(_dto.SelectedRoom, _dto.Columns, _dto.SubdivisibleAreas);
 
-        if (result is null)
-        {
-            throw new ArgumentException($"Failed to match room to columns.");
-        }
-        else
-        {
-            _dto.SubdivisibleRoomWithInsideColumn = result;
-        }
+    //    if (result is null)
+    //    {
+    //        throw new ArgumentException($"Failed to match room to columns.");
+    //    }
+    //    else
+    //    {
+    //        _dto.SubdivisibleRoomWithInsideColumn = result;
+    //    }
+    //}
+
+    public void ValidateSelectedRoomMatchWithSubdivisibleArea(List<string> _telemetry)
+    {
+        RunSubworkflow<
+            Area_GetInternalRoomsArgs,
+            Area_GetInternalRooms,
+            Area_GetInternalRoomsDto,
+            List<ElementId>>(
+                new(
+                      SubdivisibleAreas: _dto.SubdivisibleAreas
+                    , Room: _dto.SelectedRoom
+                    , GetInternalRoomsOptions: Area_GetInternalRoomsOptions.WholeRoom
+                ));
     }
 
-    private SubdivisibleRoomsWithInsideColumns FindColumnsInsideRoom(Room room, List<Element> columns)
+    private SubdivisibleRoomsWithInsideColumns FindColumnsInsideAreas(Room room, List<Element> columns, List<Area> areas)
     {
         var result = new SubdivisibleRoomsWithInsideColumns
         {
@@ -320,7 +356,8 @@ public class DynamicFLoorPlanOptionGeneration : ExternalCommand<object, DynamicF
 public class DynamicFLoorPlanOptionGenerationDto : Dto
 {
     public List<Element> Columns { get; set; }
-    public List<Room> SubdivisibleRooms { get; set; }
+    //public List<Room> SubdivisibleRooms { get; set; }
+    public List<Area> SubdivisibleAreas { get; set; }
     public Room SelectedRoom { get; set; }
     public SubdivisibleRoomsWithInsideColumns SubdivisibleRoomWithInsideColumn { get; set; }
     public List<CountourSegment> SelectedRoomContourSegments { get; set; }

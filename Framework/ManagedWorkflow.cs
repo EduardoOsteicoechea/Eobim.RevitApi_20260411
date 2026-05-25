@@ -197,8 +197,8 @@ public interface ISubworkflow<TArgs, Dto, TResult>
 }
 
 
-public abstract class ManagedWorkflow<TArgs, Dto, TResult> where Dto : class, IDto, new()
-    //public abstract class ManagedWorkflow<TArgs, Dto, TResult> : ISubworkflow<TArgs, Dto, TResult> where Dto : class, IDto, new()
+public abstract class ManagedWorkflow<TArgs, Dto, TResult>
+    where Dto : class, IDto, new()
 {
     protected ExternalCommandData? _commandData;
     protected Document? _doc;
@@ -213,6 +213,13 @@ public abstract class ManagedWorkflow<TArgs, Dto, TResult> where Dto : class, ID
     public TResult Result { get; set; }
     public int _executedActionCounter { get; set; } = 0;
     public bool _interruptRequestEmmitted { get; set; } = false;
+
+    //public abstract void SafelyInitializeInputs(TArgs args);
+    public virtual void SafelyInitializeInputs(TArgs args) { }
+    protected virtual void SetCriticalVariables() { }
+    protected abstract void SetActions();
+
+
     protected void Add(Action<List<string>> a, bool mustLogAction = true, TransactionManagementOptions b = TransactionManagementOptions.TransactionlessAction)
     {
         _actions.Add((a, mustLogAction, b));
@@ -246,8 +253,6 @@ public abstract class ManagedWorkflow<TArgs, Dto, TResult> where Dto : class, ID
             ReportUnmanagedFailure($"Workflow intentionally stopped: {message}", $"Invoked via StopWorkflow() during action");
         }
     }
-
-    public abstract void SafelyInitializeInputs(TArgs args);
 
     protected virtual UResult RunSubworkflow<TSWArgs, TSubworkflow, TSubDto, UResult>(TSWArgs args, int? iterationCounter = null)
     where TSubworkflow : ISubworkflow<TSWArgs, TSubDto, UResult>
@@ -316,8 +321,6 @@ public abstract class ManagedWorkflow<TArgs, Dto, TResult> where Dto : class, ID
     protected virtual void OnAfterGeometryTransactionGroupBeforeFileIo() { }
 
 
-    protected virtual void SetCriticalVariables() { }
-    protected abstract void SetActions();
 
 
 

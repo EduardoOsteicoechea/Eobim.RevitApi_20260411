@@ -123,16 +123,11 @@ public class DynamicFLoorPlanOptionGeneration : ExternalCommand<object, DynamicF
 
     public void ValidateSelectedRoomMatchWithSubdivisibleArea(List<string> _telemetry)
     {
-        RunSubworkflow<
-            Area_GetInternalRoomsArgs,
-            Area_GetInternalRooms,
-            Area_GetInternalRoomsDto,
-            List<ElementId>>(
-                new(
-                      SubdivisibleAreas: _dto.SubdivisibleAreas
-                    , Room: _dto.SelectedRoom
-                    , GetInternalRoomsOptions: Area_GetInternalRoomsOptions.WholeRoom
-                ));
+        RunSubworkflow<Area_GetInternalRoomsArgs, Area_GetInternalRooms, Area_GetInternalRoomsDto,List<ElementId>>(new(
+              SubdivisibleAreas: _dto.SubdivisibleAreas
+            , Room: _dto.SelectedRoom
+            , GetInternalRoomsOptions: Area_GetInternalRoomsOptions.WholeRoom
+        ));
     }
 
     private SubdivisibleRoomsWithInsideColumns FindColumnsInsideAreas(Room room, List<Element> columns, List<Area> areas)

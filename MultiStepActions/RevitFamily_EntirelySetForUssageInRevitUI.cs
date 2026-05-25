@@ -9,13 +9,7 @@ namespace Eobim.RevitApi.MultiStepActions;
 
 public record RevitFamily_EntirelySetForUssageInRevitUIArgs(string FamilyPath, string FamilyName, string FamilyTypeName);
 
-public class RevitFamily_EntirelySetForUssageInRevitUI(Document doc, string parentActionName, int actionCounter, int? iterativeActionCounter = null)
-    : 
-MultistepObservableAction<
-    RevitFamily_EntirelySetForUssageInRevitUIArgs,
-    RevitFamily_EntirelySetForUssageInRevitUIDto,
-    FamilySymbol
->(doc, parentActionName, actionCounter, iterativeActionCounter)
+public class RevitFamily_EntirelySetForUssageInRevitUI: MultistepObservableAction<RevitFamily_EntirelySetForUssageInRevitUIArgs, RevitFamily_EntirelySetForUssageInRevitUIDto, FamilySymbol>
 {
     public override void SafelyInitializeInputs(RevitFamily_EntirelySetForUssageInRevitUIArgs args)
     {
@@ -47,11 +41,11 @@ MultistepObservableAction<
             throw new ArgumentException($"Invalid Path: {_dto.FamilyPath}");
         }
 
-        bool didLoad = doc.LoadFamily(_dto.FamilyPath, out Family family);
+        bool didLoad = _doc.LoadFamily(_dto.FamilyPath, out Family family);
 
         if (!didLoad)
         {
-            _telemetry.Add("Note: doc.LoadFamily returned false. The family is likely already loaded in the document.");
+            _telemetry.Add("Note: _doc.LoadFamily returned false. The family is likely already loaded in the _document.");
         }
 
         _dto.Family = family;
@@ -65,7 +59,7 @@ MultistepObservableAction<
             _telemetry.Add($"Family Data -> Name: '{_dto.Family.Name}', Category: '{categoryName}', IsEditable: {_dto.Family.IsEditable}");
 
             var loadedSymbols = _dto.Family.GetFamilySymbolIds()
-                .Select(id => doc.GetElement(id) as FamilySymbol)
+                .Select(id => _doc.GetElement(id) as FamilySymbol)
                 .Where(symbol => symbol != null)
                 .ToList();
 
@@ -107,7 +101,7 @@ MultistepObservableAction<
 
         var logicalAndFilter = new LogicalAndFilter(familyNameFilter, familyTypeNameFilter);
 
-        var result = new FilteredElementCollector(doc)
+        var result = new FilteredElementCollector(_doc)
             .OfClass(typeof(FamilySymbol))
             .WherePasses(logicalAndFilter)
             .FirstElement() as FamilySymbol;

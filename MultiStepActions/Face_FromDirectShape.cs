@@ -7,11 +7,6 @@ public record Face_FromDirectShapeArgs(DirectShape DirectShape, string FaceToObt
 
 public class Face_FromDirectShape : MultistepObservableAction<Face_FromDirectShapeArgs, Face_FromDirectShapeDto, Face>
 {
-    public Face_FromDirectShape(Document doc, string parentActionName, int actionCounter, int? iterativeActionCounter = null    )
-        : 
-    base(doc, parentActionName, actionCounter, iterativeActionCounter)
-    { }
-
     public override void SafelyInitializeInputs(Face_FromDirectShapeArgs args)
     {
         _dto.DirectShape = args.DirectShape;

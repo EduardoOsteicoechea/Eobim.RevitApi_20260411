@@ -6,9 +6,7 @@ namespace Eobim.RevitApi.DFMA;
 
 public record RevitDFMA_ExtractFloorDataArgs(Floor InterestFloor);
 
-internal class RevitDFMA_ExtractFloorData(Document doc, string parentActionName, int actionCounter, int? iterativeActionCounter = null)
-    :
-MultistepObservableAction<RevitDFMA_ExtractFloorDataArgs, RevitDFMA_ExtractFloorDataDto, FloorDFMAData>(doc, parentActionName, actionCounter, iterativeActionCounter)
+internal class RevitDFMA_ExtractFloorData : MultistepObservableAction<RevitDFMA_ExtractFloorDataArgs, RevitDFMA_ExtractFloorDataDto, FloorDFMAData>
 {
     public override void SafelyInitializeInputs(RevitDFMA_ExtractFloorDataArgs args)
     {

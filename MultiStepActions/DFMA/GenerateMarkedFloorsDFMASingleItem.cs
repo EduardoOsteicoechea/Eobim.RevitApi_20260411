@@ -17,9 +17,7 @@ public record GenerateMarkedFloorsDFMASingleItemArgs(
     , string PDFDocumentName
 );
 
-public class GenerateMarkedFloorsDFMASingleItem(Document doc, string parentActionName, int actionCounter, int? iterativeActionCounter = null) 
-    :
-MultistepObservableAction<GenerateMarkedFloorsDFMASingleItemArgs, GenerateMarkedFloorsDFMASingleItemDto, bool>(doc, parentActionName, actionCounter, iterativeActionCounter)
+public class GenerateMarkedFloorsDFMASingleItem : MultistepObservableAction<GenerateMarkedFloorsDFMASingleItemArgs, GenerateMarkedFloorsDFMASingleItemDto, bool>
 {
     public override void SafelyInitializeInputs(GenerateMarkedFloorsDFMASingleItemArgs args) 
     {

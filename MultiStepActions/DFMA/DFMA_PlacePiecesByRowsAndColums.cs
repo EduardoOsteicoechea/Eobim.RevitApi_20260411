@@ -12,9 +12,7 @@ public record DFMA_PlacePiecesByRowsAndColumsArgs(
     double InitialY
 );
 
-public class DFMA_PlacePiecesByRowsAndColums(Document doc, string parentActionName, int actionCounter, int? iterativeActionCounter = null)
-    : 
-MultistepObservableAction<DFMA_PlacePiecesByRowsAndColumsArgs, DFMA_PlacePiecesByRowsAndColumsDto, List<DirectShapeDMFAData>>(doc, parentActionName, actionCounter, iterativeActionCounter)
+public class DFMA_PlacePiecesByRowsAndColums : MultistepObservableAction<DFMA_PlacePiecesByRowsAndColumsArgs, DFMA_PlacePiecesByRowsAndColumsDto, List<DirectShapeDMFAData>>
 {
     public override void SafelyInitializeInputs(DFMA_PlacePiecesByRowsAndColumsArgs args)
     {

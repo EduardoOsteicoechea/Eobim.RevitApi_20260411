@@ -11,9 +11,7 @@ public record DFMA_GeneratePieceFromLineArgs(
     double VerticalContourHeight
     );
 
-public class DFMA_GeneratePieceFromLine(Document doc, string parentActionName, int actionCounter, int? iterativeActionCounter = null)
-:
-MultistepObservableAction<DFMA_GeneratePieceFromLineArgs, DFMA_GeneratePieceFromLineDto, PieceContour>(doc, parentActionName, actionCounter, iterativeActionCounter)
+public class DFMA_GeneratePieceFromLine : MultistepObservableAction<DFMA_GeneratePieceFromLineArgs, DFMA_GeneratePieceFromLineDto, PieceContour>
 {
     public override void SafelyInitializeInputs(DFMA_GeneratePieceFromLineArgs args)
     {

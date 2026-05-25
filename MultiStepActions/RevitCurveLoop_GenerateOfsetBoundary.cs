@@ -10,9 +10,7 @@ public record CurveLoop_GenerateInnerOffsetBoundaryArgs(
     XYZ FaceDirection
     );
 
-internal class CurveLoop_GenerateInnerOffsetBoundary(Document doc, string parentActionName, int actionCounter, int? iterativeActionCounter = null)
-    : 
-MultistepObservableAction<CurveLoop_GenerateInnerOffsetBoundaryArgs, RevitCurveLoop_GenerateInnerOffsetBoundaryDto, List<Line>>(doc, parentActionName, actionCounter, iterativeActionCounter)
+public class CurveLoop_GenerateInnerOffsetBoundary : MultistepObservableAction<CurveLoop_GenerateInnerOffsetBoundaryArgs, RevitCurveLoop_GenerateInnerOffsetBoundaryDto, List<Line>>
 {
     public override void SafelyInitializeInputs(CurveLoop_GenerateInnerOffsetBoundaryArgs args)
     {
@@ -28,7 +26,6 @@ MultistepObservableAction<CurveLoop_GenerateInnerOffsetBoundaryArgs, RevitCurveL
         Add(GetCurveLoopLines);
         Add(AdjustLinesZCoordinate);
         Add(GenerateOffsetLines);
-        // Split into two granular steps for better observability
         Add(ExtractExactOffsetVertices);
         Add(GenerateExactOffsetLines);
     }

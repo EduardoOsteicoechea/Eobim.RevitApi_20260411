@@ -88,9 +88,7 @@ namespace Eobim.RevitApi.MultiStepActions;
 
 public record LineList_GenerateDisplacedLinesWorkflowArgs(List<Line> InputLineList, double DisplacementThickness, double DisplacementValue);
 
-public class LineList_GenerateDisplacedLinesWorkflow(Document doc, string parentActionName, int actionCounter, int? iterativeActionCounter = null)
-    :
-MultistepObservableAction<LineList_GenerateDisplacedLinesWorkflowArgs, LineList_GenerateDisplacedLinesWorkflowDto, List<Line>>(doc, parentActionName, actionCounter, iterativeActionCounter)
+public class LineList_GenerateDisplacedLinesWorkflow : MultistepObservableAction<LineList_GenerateDisplacedLinesWorkflowArgs, LineList_GenerateDisplacedLinesWorkflowDto, List<Line>>
 {
     public override void SafelyInitializeInputs(LineList_GenerateDisplacedLinesWorkflowArgs args)
     {
@@ -101,13 +99,8 @@ MultistepObservableAction<LineList_GenerateDisplacedLinesWorkflowArgs, LineList_
 
     protected override void SetActions()
     {
-        // 1. Calculate the math FIRST
         Add(SetDisplacementValue, mustLogAction: true, TransactionManagementOptions.TransactionlessAction);
-
-        // 2. Generate the lines SECOND
         Add(GenerateLines, mustLogAction: true, TransactionManagementOptions.TransactionlessAction);
-
-        // 3. Return the result
         Add(SetResult, mustLogAction: true, TransactionManagementOptions.TransactionlessAction);
     }
 

@@ -2,6 +2,7 @@
 using Autodesk.Revit.DB.Architecture;
 using Eobim.RevitApi.Framework;
 using Eobim.RevitApi.MultiStepActions.Contour;
+using Eobim.RevitApi.MultiStepActions.Face;
 
 namespace Eobim.RevitApi.MultiStepActions;
 
@@ -33,8 +34,6 @@ public class Area_GetInternalRooms : MultistepObservableAction<Area_GetInternalR
         Add(GetSameLevelAreasContours);
         Add(GetRoomBoundarySegments);
         Add(GetRoomContours);
-        Add(GenerateAreasZ0Solids);
-        Add(GetAreasZ0SolidsBottomFace);
         Add(GetRoomZ0Points);
         Add(ValidateIfAllRoomPointsAreInsideSolid);
         Add(SetResult);
@@ -77,17 +76,18 @@ public class Area_GetInternalRooms : MultistepObservableAction<Area_GetInternalR
 
     public void GetSameLevelAreasContours(List<string> _telemetry)
     {
-        var result = new List<(ElementId areaId, List<CountourSegment> countourSegments)>();
+        var result = new List<(ElementId areaId, Autodesk.Revit.DB.Face bottomFace)>();
 
         for (int i = 0; i < _dto.AreasIdsWithBoundarySegments.Count; i++)
         {
             var item = _dto.AreasIdsWithBoundarySegments[i];
 
             var itemData = RunSubworkflow<
-                Contour_FromBoundarySegmentsArgs
-                , Contour_FromBoundarySegments
-                , Contour_FromBoundarySegmentsDto
-                , List<CountourSegment>>
+                  Face_Z0FromBoundarySegmentsArgs
+                , Face_Z0FromBoundarySegments
+                , Face_Z0FromBoundarySegmentsDto
+                , Autodesk.Revit.DB.Face 
+                >
                 (
                     new(item.boundarySegments),
                     i
@@ -99,7 +99,7 @@ public class Area_GetInternalRooms : MultistepObservableAction<Area_GetInternalR
         if (result is null) throw new ArgumentException("result is null");
         if (result.Count.Equals(0)) throw new ArgumentException("result.Count.Equals(0");
 
-        _dto.AreasIdsWithContourSegments = result;
+        _dto.AreasIdsWithZ0SolidsBottomFaces = result;
     }
 
     public void GetRoomBoundarySegments(List<string> _telemetry)
@@ -120,7 +120,7 @@ public class Area_GetInternalRooms : MultistepObservableAction<Area_GetInternalR
     public void GetRoomContours(List<string> _telemetry)
     {
         var result = RunSubworkflow<
-            Contour_FromBoundarySegmentsArgs
+              Contour_FromBoundarySegmentsArgs
             , Contour_FromBoundarySegments
             , Contour_FromBoundarySegmentsDto
             , List<CountourSegment>>
@@ -132,71 +132,6 @@ public class Area_GetInternalRooms : MultistepObservableAction<Area_GetInternalR
         if (result.Count.Equals(0)) throw new ArgumentException("result.Count.Equals(0");
 
         _dto.RoomContours = result;
-    }
-
-    public void GenerateAreasZ0Solids(List<string> _telemetry)
-    {
-        var result = new List<(ElementId areaId, Solid solid)>();
-
-        for (int i = 0; i < _dto.AreasIdsWithContourSegments.Count; i++)
-        {
-            var item = _dto.AreasIdsWithContourSegments[i];
-
-            var curveLoop = new CurveLoop();
-
-            foreach (var contourSegment in item.countourSegments)
-            {
-                foreach (var line in contourSegment.Lines)
-                {
-                    var p1 = line.GetEndPoint(0);
-                    var p2 = line.GetEndPoint(1);
-                    var z0P1 = new XYZ(p1.X, p1.Y, 0);
-                    var z0P2 = new XYZ(p2.X, p2.Y, 0);
-                    curveLoop.Append(Line.CreateBound(z0P1, z0P2));
-                }
-            }
-
-            var solid = GeometryCreationUtilities.CreateExtrusionGeometry(new List<CurveLoop> { curveLoop }, XYZ.BasisZ, 10);
-
-            if (solid is null) throw new ArgumentException("Failed to create solid from contour segments. Result is null.");
-
-            result.Add((item.areaId, solid));
-        }
-
-        if (result is null) throw new ArgumentException("result is null");
-        if (result.Count.Equals(0)) throw new ArgumentException("result.Count.Equals(0");
-
-        _dto.AreasIdsWithZ0Solids = result;
-    }
-
-    public void GetAreasZ0SolidsBottomFace(List<string> _telemetry)
-    {
-        var result = new List<(ElementId areaId, Face face)>();
-
-        for (int i = 0; i < _dto.AreasIdsWithZ0Solids.Count; i++)
-        {
-            var item = _dto.AreasIdsWithZ0Solids[i];
-
-            var solid = item.solid;
-
-            var face = solid
-                .Faces
-                .Cast<Face>()
-                .ToList()
-                .First(a =>
-                    a.ComputeNormal(new UV(.5, .5))
-                    .IsAlmostEqualTo(XYZ.BasisZ.Negate())
-                );
-
-            if (face is null) throw new ArgumentException($"face is null for area {item.areaId}");
-
-            result.Add((item.areaId, face));
-        }
-
-        if (result is null) throw new ArgumentException("result is null");
-        if (result.Count.Equals(0)) throw new ArgumentException("result.Count.Equals(0");
-
-        _dto.AreasIdsWithZ0SolidsBottomFaces = result;
     }
 
     public void GetRoomZ0Points(List<string> _telemetry)
@@ -257,7 +192,7 @@ public class Area_GetInternalRooms : MultistepObservableAction<Area_GetInternalR
         _dto.RoomIsInsideValidation = (result, result ? _dto.SubdivisibleAreas.FirstOrDefault()?.Id : (ElementId?)null);
     }
 
-    private bool IsPointOnFace(XYZ point, Face face)
+    private bool IsPointOnFace(XYZ point, Autodesk.Revit.DB.Face face)
     {
         // 1. Attempt to project the 3D point onto the face
         IntersectionResult projection = face.Project(point);
@@ -291,7 +226,7 @@ public class Area_GetInternalRoomsDto : Dto
     public List<List<BoundarySegment>> RoomBoundarySegments { get; set; }
     public List<CountourSegment> RoomContours { get; set; }
     public List<(ElementId areaId, Solid solid)> AreasIdsWithZ0Solids { get; set; }
-    public List<(ElementId areaId, Face face)> AreasIdsWithZ0SolidsBottomFaces { get; set; }
+    public List<(ElementId areaId, Autodesk.Revit.DB.Face face)> AreasIdsWithZ0SolidsBottomFaces { get; set; }
     public List<XYZ> RoomPoints { get; set; }
     public (bool, ElementId?) RoomIsInsideValidation { get; set; }
 }

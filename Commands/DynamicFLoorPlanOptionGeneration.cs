@@ -5,7 +5,10 @@ using Autodesk.Revit.UI;
 using Autodesk.Revit.UI.Selection;
 using Eobim.RevitApi.Framework;
 using Eobim.RevitApi.MultiStepActions;
+using Eobim.RevitApi.MultiStepActions.Contour;
+using Eobim.RevitApi.MultiStepActions.Face;
 using Eobim.RevitApi.SelectionFilter;
+using UIFramework;
 
 namespace Eobim.RevitApi.Commands;
 
@@ -20,6 +23,7 @@ public class DynamicFLoorPlanOptionGeneration : ExternalCommand<object, DynamicF
         Add(PromptUserToPickRoom);
         Add(ValidateIfSelectedRoomIsInsideOfSubdivisibleArea);
         Add(InterruptWorkflowIfRoomIsNotInsideAnySubdivisibleArea);
+        Add(GenerateSubdivisibleAreaGrid);
         Add(SetResult);
     }
 
@@ -87,11 +91,18 @@ public class DynamicFLoorPlanOptionGeneration : ExternalCommand<object, DynamicF
 
     public void ValidateIfSelectedRoomIsInsideOfSubdivisibleArea(List<string> _telemetry)
     {
-        _dto.RoomIsInsideASubdivisibleArea = RunSubworkflow<Area_GetInternalRoomsArgs, Area_GetInternalRooms, Area_GetInternalRoomsDto, (bool isInsideAnyArea, ElementId? containingAreaId)>(new(
-              SubdivisibleAreas: _dto.SubdivisibleAreas
-            , Room: _dto.SelectedRoom
-            , GetInternalRoomsOptions: Area_GetInternalRoomsOptions.WholeRoom
-        ));
+        _dto.RoomIsInsideASubdivisibleArea = RunSubworkflow<
+                Area_GetInternalRoomsArgs, 
+                Area_GetInternalRooms, 
+                Area_GetInternalRoomsDto, 
+                (bool isInsideAnyArea, ElementId? containingAreaId)
+            >(
+                new(
+                      SubdivisibleAreas: _dto.SubdivisibleAreas
+                    , Room: _dto.SelectedRoom
+                    , GetInternalRoomsOptions: Area_GetInternalRoomsOptions.WholeRoom
+                )
+            );
     }
 
     public void InterruptWorkflowIfRoomIsNotInsideAnySubdivisibleArea(List<string> _telemetry)
@@ -102,93 +113,39 @@ public class DynamicFLoorPlanOptionGeneration : ExternalCommand<object, DynamicF
         }
     }
 
-    //private SubdivisibleRoomsWithInsideColumns FindColumnsInsideAreas(Room room, List<Element> columns, List<Area> areas)
-    //{
-    //    var result = new SubdivisibleRoomsWithInsideColumns
-    //    {
-    //        Room = room,
-    //        Columns = new List<Element>()
-    //    };
+    public void GenerateSubdivisibleAreaGrid(List<string> _telemetry)
+    {
+        var area = _dto.SubdivisibleAreas.First(a => a.Id.Equals(_dto.RoomIsInsideASubdivisibleArea.containingAreaId));
 
-    //    foreach (var column in columns)
-    //    {
-    //        if (room.IsPointInRoom(ColumnMassCenter(column)))
-    //        {
-    //            result.Columns.Add(column);
-    //        }
-    //    }
+        var options = new SpatialElementBoundaryOptions
+        {
+            SpatialElementBoundaryLocation = SpatialElementBoundaryLocation.Finish,
+        };
 
-    //    return result;
-    //}
+        var areaBoundarySegments = area.GetBoundarySegments(options).Select(a => a.ToList()).ToList();
 
-    //private XYZ ColumnMassCenter(Element column)
-    //{
-    //    // 1. Setup geometry extraction options
-    //    Options geomOptions = new Options
-    //    {
-    //        ComputeReferences = false,
-    //        DetailLevel = ViewDetailLevel.Fine
-    //    };
+        var areaBottomFace = RunSubworkflow<
+              Face_Z0FromBoundarySegmentsArgs
+            , Face_Z0FromBoundarySegments
+            , Face_Z0FromBoundarySegmentsDto
+            , Autodesk.Revit.DB.Face
+            >
+            (
+                new(areaBoundarySegments)
+            );
 
-    //    GeometryElement geomElement = column.get_Geometry(geomOptions);
+        var gridLines = RunSubworkflow<
+              Grid_LinesFromFaceArgs
+            , Grid_LinesFromFace
+            , Grid_LinesFromFaceDto
+            , List<Line>
+            >
+            (
+                new(areaBottomFace)
+            );
 
-    //    if (geomElement == null)
-    //    {
-    //        throw new ArgumentException("Cannot extract geometry from the provided column.");
-    //    }
-
-    //    XYZ centerOfMassSum = XYZ.Zero;
-    //    double totalVolume = 0.0;
-
-    //    // 2. Iterate through the geometry to find solids
-    //    foreach (GeometryObject geomObj in geomElement)
-    //    {
-    //        if (geomObj is GeometryInstance geomInstance)
-    //        {
-    //            GeometryElement instanceGeom = geomInstance.GetInstanceGeometry();
-    //            foreach (GeometryObject instObj in instanceGeom)
-    //            {
-    //                if (instObj is Solid solid && solid.Volume > 0)
-    //                {
-    //                    double volume = solid.Volume;
-    //                    // Multiply centroid by volume to weight it properly
-    //                    centerOfMassSum += solid.ComputeCentroid() * volume;
-    //                    totalVolume += volume;
-    //                }
-    //            }
-    //        }
-    //        else if (geomObj is Solid solid && solid.Volume > 0)
-    //        {
-    //            double volume = solid.Volume;
-    //            centerOfMassSum += solid.ComputeCentroid() * volume;
-    //            totalVolume += volume;
-    //        }
-    //    }
-
-    //    // 3. Calculate the final weighted average for the center of mass
-    //    if (totalVolume > 0)
-    //    {
-    //        return centerOfMassSum / totalVolume;
-    //    }
-
-    //    // 4. Fallback 1: Bounding Box center (if no physical solids with volume exist)
-    //    BoundingBoxXYZ bbox = column.get_BoundingBox(null);
-
-    //    if (bbox != null)
-    //    {
-    //        return (bbox.Min + bbox.Max) / 2.0;
-    //    }
-
-    //    // 5. Fallback 2: The original LocationPoint (insertion point)
-    //    var columnLocation = column.Location as LocationPoint;
-
-    //    if (columnLocation != null)
-    //    {
-    //        return columnLocation.Point;
-    //    }
-
-    //    throw new InvalidOperationException("Could not compute mass center: no valid geometry, bounding box, or location point found.");
-    //}
+        _dto.ContainingAreaGridLines = gridLines;
+    }
 
     
 

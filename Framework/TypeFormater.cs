@@ -582,7 +582,7 @@ public static class TypeFormatter
         return SafeElement(item, d => $"{d.Id}: {d.Name}");
     }
 
-    public static string Areas(List<Area> data)
+    public static string AreaList(List<Area> data)
     {
         if (data == null) return "[null]";
 
@@ -1636,5 +1636,12 @@ public static class TypeFormatter
         printer.Append($")");
 
         return printer.ToString();
+    }
+
+
+
+    public static string BooleanAndNullableElementIdTuple((bool, ElementId?) item)
+    {
+        return $"{item.Item1}, {ElementId(item.Item2)}";
     }
 }

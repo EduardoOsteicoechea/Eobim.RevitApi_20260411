@@ -662,19 +662,277 @@ public class TelemetryHtmlWriter
         }
 
         // 2. Recursively grab subworkflows (subdirectories)
-        var subDirs = Directory.GetDirectories(directoryPath);
+        // We use LINQ to parse the action number (and optional iteration number) 
+        // from the folder name (e.g., "4_Area..." or "3_0_Face...") to sort numerically instead of alphabetically.
+        var subDirs = Directory.GetDirectories(directoryPath)
+            .OrderBy(dir =>
+            {
+                var name = new DirectoryInfo(dir).Name;
+                var parts = name.Split('_');
+                // Primary sort by the first number (Action Counter)
+                return int.TryParse(parts[0], out int primary) ? primary : int.MaxValue;
+            })
+            .ThenBy(dir =>
+            {
+                var name = new DirectoryInfo(dir).Name;
+                var parts = name.Split('_');
+                // Secondary sort by the second number (Iterative Action Counter), if it exists
+                return parts.Length > 1 && int.TryParse(parts[1], out int secondary) ? secondary : -1;
+            })
+            .ToArray();
+
         if (subDirs.Length > 0)
         {
             var subworkflowsArray = new JsonArray();
+
             foreach (var subDir in subDirs)
             {
                 subworkflowsArray.Add(BuildTelemetryTree(subDir));
             }
+
             node["Subworkflows"] = subworkflowsArray;
         }
 
         return node;
     }
+
+    //    private static string GetHtmlTemplate()
+    //    {
+    //        // Using standard string literal with single quotes for HTML/JS to avoid heavy escaping in C#
+    //        return @"<!DOCTYPE html>
+    //<html lang='en'>
+    //<head>
+    //    <meta charset='utf-8'>
+    //    <title>Workflow Telemetry Report</title>
+    //    <style>
+    //        body { font-family: Consolas, 'Courier New', monospace; background: #1e1e1e; color: #d4d4d4; padding: 20px; font-size: 14px; }
+    //        button { background: #333; color: #fff; border: 1px solid #555; padding: 5px 10px; cursor: pointer; border-radius: 3px; margin-right: 10px; }
+    //        button:hover { background: #444; }
+    //        details { margin-left: 10px; margin-bottom: 2px; }
+    //        summary { cursor: pointer; padding: 3px; border-radius: 3px; font-weight: bold; }
+    //        summary:hover { background: #2a2d2e; }
+    //        .key { color: #9cdcfe; margin-right: 5px; }
+    //        .string { color: #ce9178; }
+    //        .number { color: #b5cea8; }
+    //        .boolean { color: #569cd6; }
+    //        .null { color: #c586c0; font-style: italic; }
+    //        ul { list-style-type: none; padding-left: 20px; margin: 0; border-left: 1px solid #404040; }
+    //        li { margin: 3px 0; }
+    //        /*.root-container { background: #252526; padding: 20px; border-radius: 5px; border: 1px solid #333; }*/
+    //    </style>
+    //</head>
+    //<body>
+    //    <div id='app' class='root-container'></div>
+
+    //    <script>
+    //        const telemetryData = {{TELEMETRY_DATA}};
+
+    //        function renderNode(data, keyName = null, isRoot = false) {
+
+    //            if (data === null) {
+    //                const span = document.createElement('span');
+    //                span.className = 'null';
+    //                span.textContent = 'null';
+    //                return span;
+    //            }
+
+    //            const type = typeof data;
+
+    //            if (type !== 'object') {
+    //                const span = document.createElement('span');
+    //                span.className = type;
+    //                span.textContent = type === 'string' ? '""' + data + '""' : data;
+    //                return span;
+    //            }
+
+    //            const details = document.createElement('details');
+
+    //            if (isRoot || keyName === 'Subworkflows' || keyName === 'State') {
+    //                details.open = true;
+    //            }
+
+    //            const summary = document.createElement('summary');
+    //            const summaryText = document.createElement('span');
+    //            summaryText.className = 'key';
+
+    //            // Format arrays differently from objects in the summary
+
+    //            const isArray = Array.isArray(data);
+    //            summaryText.textContent = keyName ? keyName + (isArray ? ' [' + data.length + ']' : '') : (isArray ? 'Array' : 'Object');
+    //            summary.appendChild(summaryText);
+    //            details.appendChild(summary);
+
+    //            const ul = document.createElement('ul');
+
+    //            for (const key in data) {
+    //                const li = document.createElement('li');
+
+    //                if (typeof data[key] === 'object' && data[key] !== null) {
+    //                    li.appendChild(renderNode(data[key], key));
+    //                } else {
+    //                    const keySpan = document.createElement('span');
+    //                    keySpan.className = 'key';
+    //                    keySpan.textContent = key + ': ';
+    //                    li.appendChild(keySpan);
+    //                    li.appendChild(renderNode(data[key]));
+    //                }
+    //                ul.appendChild(li);
+    //            }
+
+    //            details.appendChild(ul);
+
+    //            return details;
+    //        }
+
+    //        document.getElementById('app').appendChild(renderNode(telemetryData, 'Execution Lifecycle', true));
+    //    </script>
+    //</body>
+    //</html>";
+    //    }
+
+    //    private static string GetHtmlTemplate()
+    //    {
+    //        // Using standard string literal with single quotes for HTML/JS to avoid heavy escaping in C#
+    //        return @"<!DOCTYPE html>
+    //<html lang='en'>
+    //<head>
+    //    <meta charset='utf-8'>
+    //    <title>Workflow Telemetry Report</title>
+    //    <style>
+    //        body { font-family: Consolas, 'Courier New', monospace; background: #1e1e1e; color: #d4d4d4; padding: 20px; font-size: 14px; }
+    //        h2 { color: #569cd6; border-bottom: 1px solid #404040; padding-bottom: 10px; }
+    //        .controls { margin-bottom: 20px; }
+    //        button { background: #333; color: #fff; border: 1px solid #555; padding: 5px 10px; cursor: pointer; border-radius: 3px; margin-right: 10px; }
+    //        button:hover { background: #444; }
+    //        details { margin-left: 10px; margin-bottom: 2px; }
+    //        summary { cursor: pointer; padding: 3px; border-radius: 3px; font-weight: bold; }
+    //        summary:hover { background: #2a2d2e; }
+    //        .key { color: #9cdcfe; margin-right: 5px; }
+    //        .string { color: #ce9178; }
+    //        .number { color: #b5cea8; }
+    //        .boolean { color: #569cd6; }
+    //        .null { color: #c586c0; font-style: italic; }
+    //        ul { list-style-type: none; padding-left: 20px; margin: 0; border-left: 1px solid #404040; }
+    //        li { margin: 3px 0; }
+    //        .root-container { background: #252526; padding: 20px; border-radius: 5px; border: 1px solid #333; }
+
+    //        /* New classes for subworkflows */
+    //        .wf-success { color: #89d185; margin-right: 5px; } /* VS Code Green */
+    //        .wf-error { color: #f14c4c; margin-right: 5px; }   /* VS Code Red */
+    //        .wf-name { color: #dcdcaa; font-weight: normal; font-style: italic; } /* VS Code Yellow-ish */
+    //    </style>
+    //</head>
+    //<body>
+    //    <h2>Workflow Telemetry State</h2>
+    //    <div class='controls'>
+    //        <button onclick='toggleAll(true)'>Expand All</button>
+    //        <button onclick='toggleAll(false)'>Collapse All</button>
+    //    </div>
+    //    <div id='app' class='root-container'></div>
+
+    //    <script>
+    //        const telemetryData = {{TELEMETRY_DATA}};
+
+    //        function renderNode(data, keyName = null, isRoot = false) {
+    //            if (data === null) {
+    //                const span = document.createElement('span');
+    //                span.className = 'null';
+    //                span.textContent = 'null';
+    //                return span;
+    //            }
+
+    //            const type = typeof data;
+    //            if (type !== 'object') {
+    //                const span = document.createElement('span');
+    //                span.className = type;
+    //                span.textContent = type === 'string' ? '""' + data + '""' : data;
+    //                return span;
+    //            }
+
+    //            const details = document.createElement('details');
+    //            if (isRoot || keyName === 'Subworkflows' || keyName === 'State') {
+    //                details.open = true; // Auto-open high level structures
+    //            }
+
+    //            const summary = document.createElement('summary');
+    //            const summaryText = document.createElement('span');
+    //            summaryText.className = 'key';
+
+    //            const isArray = Array.isArray(data);
+
+    //            // MAGIC TRICK: Check if this object represents a workflow container
+    //            const isWorkflowObj = data && !isArray && data.hasOwnProperty('WorkflowDirectory');
+
+    //            if (isWorkflowObj && keyName !== null && !isNaN(keyName)) {
+    //                // 1. We are iterating through a Subworkflows array.
+    //                const index1Based = parseInt(keyName) + 1;
+
+    //                // 2. Extract the name safely
+    //                const wfName = (data.State && typeof data.State === 'object' && data.State.WorkflowName) 
+    //                    ? data.State.WorkflowName 
+    //                    : data.WorkflowDirectory;
+
+    //                // 3. Check for failures (including parsing failures from C#)
+    //                let hasError = false;
+    //                if (typeof data.State === 'string' && data.State.startsWith('[Failed')) {
+    //                    hasError = true;
+    //                } else if (data.State && typeof data.State === 'object' && data.State.Failure !== null) {
+    //                    hasError = true;
+    //                }
+
+    //                // Apply our new styling
+    //                summaryText.className = hasError ? 'wf-error' : 'wf-success';
+    //                summaryText.textContent = index1Based;
+
+    //                const nameSpan = document.createElement('span');
+    //                nameSpan.className = 'wf-name';
+    //                nameSpan.textContent = ' - ' + wfName;
+
+    //                summary.appendChild(summaryText);
+    //                summary.appendChild(nameSpan);
+    //            } 
+    //            else 
+    //            {
+    //                // Default fallback formatting
+    //                summaryText.textContent = keyName ? keyName + (isArray ? ' [' + data.length + ']' : '') : (isArray ? 'Array' : 'Object');
+    //                summary.appendChild(summaryText);
+    //            }
+
+    //            details.appendChild(summary);
+
+    //            const ul = document.createElement('ul');
+    //            for (const key in data) {
+    //                const li = document.createElement('li');
+
+    //                if (typeof data[key] === 'object' && data[key] !== null) {
+    //                    li.appendChild(renderNode(data[key], key));
+    //                } else {
+    //                    const keySpan = document.createElement('span');
+    //                    keySpan.className = 'key';
+    //                    keySpan.textContent = key + ': ';
+    //                    li.appendChild(keySpan);
+    //                    li.appendChild(renderNode(data[key]));
+    //                }
+    //                ul.appendChild(li);
+    //            }
+
+    //            details.appendChild(ul);
+    //            return details;
+    //        }
+
+    //        function toggleAll(open) {
+    //            document.querySelectorAll('details').forEach(d => d.open = open);
+    //        }
+
+    //        document.getElementById('app').appendChild(renderNode(telemetryData, 'Execution Lifecycle', true));
+    //    </script>
+    //</body>
+    //</html>";
+    //    }
+
+
+
+
 
     private static string GetHtmlTemplate()
     {
@@ -683,34 +941,51 @@ public class TelemetryHtmlWriter
 <html lang='en'>
 <head>
     <meta charset='utf-8'>
-    <title>Workflow Telemetry Report</title>
+    <title>Workflow Telemetry</title>
     <style>
-        body { font-family: Consolas, 'Courier New', monospace; background: #1e1e1e; color: #d4d4d4; padding: 20px; font-size: 14px; }
-        .controls { margin-bottom: 20px; }
-        button { background: #333; color: #fff; border: 1px solid #555; padding: 5px 10px; cursor: pointer; border-radius: 3px; margin-right: 10px; }
-        button:hover { background: #444; }
+        body { font-family: Consolas, 'Courier New', monospace; background: #1e1e1e; color: #d4d4d4; padding: 20px; font-size: 14px; margin: 0; }
         details { margin-left: 10px; margin-bottom: 2px; }
-        summary { cursor: pointer; padding: 3px; border-radius: 3px; font-weight: bold; }
+        summary { cursor: pointer; padding: 4px; border-radius: 3px; font-weight: bold; margin-bottom: 2px; }
         summary:hover { background: #2a2d2e; }
+        
+        /* Data type colors */
         .key { color: #9cdcfe; margin-right: 5px; }
         .string { color: #ce9178; }
         .number { color: #b5cea8; }
         .boolean { color: #569cd6; }
         .null { color: #c586c0; font-style: italic; }
+        
         ul { list-style-type: none; padding-left: 20px; margin: 0; border-left: 1px solid #404040; }
         li { margin: 3px 0; }
-        .root-container { background: #252526; padding: 20px; border-radius: 5px; border: 1px solid #333; }
+        .root-container { background: #252526; padding: 20px; border-radius: 5px; border: 1px solid #333; min-height: 95vh; }
+        
+        /* Workflow Container Styling */
+        .wf-summary-success { 
+            background-color: rgba(137, 209, 133, 0.15); 
+            border-left: 4px solid #89d185; 
+            color: #ffffff;
+        }
+        .wf-summary-error { 
+            background-color: rgba(241, 76, 76, 0.2); 
+            border-left: 4px solid #f14c4c; 
+            color: #ffffff;
+        }
+        .wf-summary-success:hover { background-color: rgba(137, 209, 133, 0.25); }
+        .wf-summary-error:hover { background-color: rgba(241, 76, 76, 0.3); }
     </style>
 </head>
 <body>
-    <div class='controls'>
-        <button onclick='toggleAll(true)'>Expand All</button>
-        <button onclick='toggleAll(false)'>Collapse All</button>
-    </div>
     <div id='app' class='root-container'></div>
 
     <script>
         const telemetryData = {{TELEMETRY_DATA}};
+
+        // Dynamically set the page title
+        if (telemetryData && telemetryData.State) {
+            const docTitle = telemetryData.State.DocumentTitle || 'UnknownDoc';
+            const wfName = telemetryData.State.WorkflowName || 'UnknownWorkflow';
+            document.title = docTitle + ' - ' + wfName;
+        }
 
         function renderNode(data, keyName = null, isRoot = false) {
             if (data === null) {
@@ -730,17 +1005,54 @@ public class TelemetryHtmlWriter
 
             const details = document.createElement('details');
             if (isRoot || keyName === 'Subworkflows' || keyName === 'State') {
-                details.open = true; // Auto-open high level structures
+                details.open = true;
             }
 
             const summary = document.createElement('summary');
-            const summaryText = document.createElement('span');
-            summaryText.className = 'key';
-            
-            // Format arrays differently from objects in the summary
             const isArray = Array.isArray(data);
-            summaryText.textContent = keyName ? keyName + (isArray ? ' [' + data.length + ']' : '') : (isArray ? 'Array' : 'Object');
-            summary.appendChild(summaryText);
+            
+            // Check if this object represents a workflow container (Root or Subworkflow)
+            const isWorkflowObj = data && !isArray && data.hasOwnProperty('WorkflowDirectory');
+
+            if (isWorkflowObj) {
+                // Determine error state
+                let hasError = false;
+                if (typeof data.State === 'string' && data.State.startsWith('[Failed')) {
+                    hasError = true;
+                } else if (data.State && typeof data.State === 'object' && data.State.Failure !== null) {
+                    hasError = true;
+                }
+                
+                // Apply the full-bar background styling
+                summary.className = hasError ? 'wf-summary-error' : 'wf-summary-success';
+                
+                // Extract the workflow name safely
+                const wfName = (data.State && typeof data.State === 'object' && data.State.WorkflowName) 
+                    ? data.State.WorkflowName 
+                    : data.WorkflowDirectory;
+                
+                const summaryText = document.createElement('span');
+                
+                if (!isRoot && keyName !== null && !isNaN(keyName)) {
+                    // It's a subworkflow: prepend the 1-based index
+                    const index1Based = parseInt(keyName) + 1;
+                    summaryText.textContent = index1Based + ' - ' + wfName;
+                } else {
+                    // It's the root workflow: just show the name
+                    summaryText.textContent = wfName;
+                }
+                
+                summary.appendChild(summaryText);
+            } 
+            else 
+            {
+                // Standard object/array summary styling
+                const summaryText = document.createElement('span');
+                summaryText.className = 'key';
+                summaryText.textContent = keyName ? keyName + (isArray ? ' [' + data.length + ']' : '') : (isArray ? 'Array' : 'Object');
+                summary.appendChild(summaryText);
+            }
+            
             details.appendChild(summary);
 
             const ul = document.createElement('ul');
@@ -763,13 +1075,14 @@ public class TelemetryHtmlWriter
             return details;
         }
 
-        function toggleAll(open) {
-            document.querySelectorAll('details').forEach(d => d.open = open);
-        }
-
-        document.getElementById('app').appendChild(renderNode(telemetryData, 'Execution Lifecycle', true));
+        // Render the root node without passing a keyName, but flagging it as root
+        document.getElementById('app').appendChild(renderNode(telemetryData, null, true));
     </script>
 </body>
 </html>";
     }
+
+
+
+
 }

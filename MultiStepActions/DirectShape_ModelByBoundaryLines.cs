@@ -170,7 +170,7 @@ public class DirectShape_ModelPlanarByBoundaryLines : MultistepObservableAction<
 
         var solid = faceGeometry.OfType<Solid>().FirstOrDefault(s => s.Volume > 0);
 
-        var faces = solid?.Faces.Cast<Face>();
+        var faces = solid?.Faces.Cast<Autodesk.Revit.DB.Face>();
 
         var result = faces?.FirstOrDefault(a =>
         {
@@ -189,7 +189,7 @@ public class DirectShape_ModelPlanarByBoundaryLines : MultistepObservableAction<
 
         var solid = faceGeometry.OfType<Solid>().FirstOrDefault(s => s.Volume > 0);
 
-        var faces = solid?.Faces.Cast<Face>();
+        var faces = solid?.Faces.Cast<Autodesk.Revit.DB.Face>();
 
         var result = faces?.FirstOrDefault(a =>
         {
@@ -240,8 +240,8 @@ public class DirectShape_ModelByBoundaryLinesDto : Dto
     public double MinY { get; set; }
     public double MaxX { get; set; }
     public double MaxY { get; set; }
-    public Face DirectShapeBottomFace { get; set; }
-    public Face DirectShapeLeadFace { get; set; }
+    public Autodesk.Revit.DB.Face DirectShapeBottomFace { get; set; }
+    public Autodesk.Revit.DB.Face DirectShapeLeadFace { get; set; }
 
     public CurveLoop CurveLoop { get; set; }
     public Solid Solid { get; set; }

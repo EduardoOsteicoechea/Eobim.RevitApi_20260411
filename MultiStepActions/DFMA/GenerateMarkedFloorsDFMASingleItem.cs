@@ -445,7 +445,7 @@ public class GenerateMarkedFloorsDFMASingleItem : MultistepObservableAction<Gene
             Face_FromDirectShapeArgs,
             Face_FromDirectShape,
             Face_FromDirectShapeDto,
-            Face
+            Autodesk.Revit.DB.Face
         >(
             new(
                 DirectShape: _dto.BottomInternalFaceDirectShapeDMFAData.DirectShape,
@@ -891,7 +891,7 @@ public class GenerateMarkedFloorsDFMASingleItem : MultistepObservableAction<Gene
             {
                 if (geomObj is Solid solid && solid.Faces.Size > 0)
                 {
-                    foreach (Face face in solid.Faces)
+                    foreach (Autodesk.Revit.DB.Face face in solid.Faces)
                     {
                         Mesh mesh = face.Triangulate();
                         if (mesh == null) continue;
@@ -1247,7 +1247,7 @@ public class GenerateMarkedFloorsDFMASingleItemDto : Dto
     public List<DirectShapeDMFAData> ExternalVerticalFacesDirectShapeDMFADataList { get; set; }
 
 
-    public Face InternalBottomShapeTopFace { get; set; }
+    public Autodesk.Revit.DB.Face InternalBottomShapeTopFace { get; set; }
     public List<Line> BottomShapeTopFaceVerticalSubdivisoryLines { get; set; }
     public List<PieceContour> BottomShapeTopFaceVerticalSubdivisoryLinesPiecesContours { get; set; }
     public List<DirectShapeDMFAData> BottomShapeTopFaceVerticalSubdivisoryLinesDirectShapeDMFAData { get; set; }

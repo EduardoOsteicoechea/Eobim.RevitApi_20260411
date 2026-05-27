@@ -119,7 +119,7 @@ public class DFMA_PlacePiecesByRowsAndColums : MultistepObservableAction<DFMA_Pl
         bMinX = double.MaxValue; bMaxX = double.MinValue;
         bMinY = double.MaxValue; bMinZ = double.MaxValue;
 
-        foreach (Face face in solid.Faces)
+        foreach (Autodesk.Revit.DB.Face face in solid.Faces)
         {
             Mesh mesh = face.Triangulate();
             if (mesh == null) continue;

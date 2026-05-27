@@ -2,6 +2,7 @@ using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace Eobim.RevitApi.Framework;
 
@@ -124,6 +125,12 @@ where Dto : class, IDto, new()
             finally
             {
                 RecordData();
+
+                // Add the HTML report generator here
+                if (_fileSystemManager != null)
+                {
+                    TelemetryHtmlWriter.GenerateHtmlReport(_fileSystemManager.InstanceLogDirectory);
+                }
             }
         }
     }
@@ -194,6 +201,12 @@ where Dto : class, IDto, new()
         finally
         {
             RecordData();
+            
+            // Add the HTML report generator here
+            if (_fileSystemManager != null)
+            {
+                TelemetryHtmlWriter.GenerateHtmlReport(_fileSystemManager.InstanceLogDirectory);
+            }
         }
     }
 }
@@ -544,9 +557,7 @@ public class TelemetryFileSystemManager
 
     public void WriteTelemetryFile(string? content, int workflowNumber)
     {
-        //var finalLogfilePath = Path.Combine(InstanceLogDirectory, $"{workflowNumber}_{_actionName}.json");
         var finalLogfilePath = Path.Combine(InstanceLogDirectory, $"{_actionName}.json");
-        //var finalLogfilePath = Path.Combine(InstanceLogDirectory, $"{_actionName}.json");
 
         File.WriteAllText(finalLogfilePath, content ?? "Empty");
     }
@@ -587,4 +598,178 @@ public enum WorkflowInterruptionReason
 {
     Success,
     Error
+}
+
+
+
+
+
+
+
+
+
+public class TelemetryHtmlWriter
+{
+    /// <summary>
+    /// Traverses the workflow log directory, compiles all JSON files into a single tree,
+    /// and generates an interactive HTML viewer.
+    /// </summary>
+    /// <param name="rootDirectory">The InstanceLogDirectory of the main ExternalCommand</param>
+    public static void GenerateHtmlReport(string rootDirectory)
+    {
+        if (!Directory.Exists(rootDirectory)) return;
+
+        var rootNode = BuildTelemetryTree(rootDirectory);
+
+        // Serialize the compiled tree into a formatted string
+        string jsonString = rootNode.ToJsonString(new JsonSerializerOptions
+        {
+            WriteIndented = true,
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+        });
+
+        // Inject into the HTML template
+        string htmlContent = GetHtmlTemplate().Replace("{{TELEMETRY_DATA}}", jsonString);
+
+        // Save the HTML file alongside the main root directory
+        var directoryInfo = new DirectoryInfo(rootDirectory);
+        string reportName = $"{directoryInfo.Name}_Report.html";
+        string outputPath = Path.Combine(directoryInfo.Parent!.FullName, reportName);
+
+        File.WriteAllText(outputPath, htmlContent);
+    }
+
+    private static JsonNode BuildTelemetryTree(string directoryPath)
+    {
+        var node = new JsonObject();
+        var dirInfo = new DirectoryInfo(directoryPath);
+
+        node["WorkflowDirectory"] = dirInfo.Name;
+
+        // 1. Grab the JSON file in the current directory level
+        var jsonFiles = Directory.GetFiles(directoryPath, "*.json", SearchOption.TopDirectoryOnly);
+        if (jsonFiles.Length > 0)
+        {
+            try
+            {
+                string content = File.ReadAllText(jsonFiles[0]);
+                node["State"] = JsonNode.Parse(content);
+            }
+            catch (Exception ex)
+            {
+                node["State"] = $"[Failed to parse JSON: {ex.Message}]";
+            }
+        }
+
+        // 2. Recursively grab subworkflows (subdirectories)
+        var subDirs = Directory.GetDirectories(directoryPath);
+        if (subDirs.Length > 0)
+        {
+            var subworkflowsArray = new JsonArray();
+            foreach (var subDir in subDirs)
+            {
+                subworkflowsArray.Add(BuildTelemetryTree(subDir));
+            }
+            node["Subworkflows"] = subworkflowsArray;
+        }
+
+        return node;
+    }
+
+    private static string GetHtmlTemplate()
+    {
+        // Using standard string literal with single quotes for HTML/JS to avoid heavy escaping in C#
+        return @"<!DOCTYPE html>
+<html lang='en'>
+<head>
+    <meta charset='utf-8'>
+    <title>Workflow Telemetry Report</title>
+    <style>
+        body { font-family: Consolas, 'Courier New', monospace; background: #1e1e1e; color: #d4d4d4; padding: 20px; font-size: 14px; }
+        .controls { margin-bottom: 20px; }
+        button { background: #333; color: #fff; border: 1px solid #555; padding: 5px 10px; cursor: pointer; border-radius: 3px; margin-right: 10px; }
+        button:hover { background: #444; }
+        details { margin-left: 10px; margin-bottom: 2px; }
+        summary { cursor: pointer; padding: 3px; border-radius: 3px; font-weight: bold; }
+        summary:hover { background: #2a2d2e; }
+        .key { color: #9cdcfe; margin-right: 5px; }
+        .string { color: #ce9178; }
+        .number { color: #b5cea8; }
+        .boolean { color: #569cd6; }
+        .null { color: #c586c0; font-style: italic; }
+        ul { list-style-type: none; padding-left: 20px; margin: 0; border-left: 1px solid #404040; }
+        li { margin: 3px 0; }
+        .root-container { background: #252526; padding: 20px; border-radius: 5px; border: 1px solid #333; }
+    </style>
+</head>
+<body>
+    <div class='controls'>
+        <button onclick='toggleAll(true)'>Expand All</button>
+        <button onclick='toggleAll(false)'>Collapse All</button>
+    </div>
+    <div id='app' class='root-container'></div>
+
+    <script>
+        const telemetryData = {{TELEMETRY_DATA}};
+
+        function renderNode(data, keyName = null, isRoot = false) {
+            if (data === null) {
+                const span = document.createElement('span');
+                span.className = 'null';
+                span.textContent = 'null';
+                return span;
+            }
+
+            const type = typeof data;
+            if (type !== 'object') {
+                const span = document.createElement('span');
+                span.className = type;
+                span.textContent = type === 'string' ? '""' + data + '""' : data;
+                return span;
+            }
+
+            const details = document.createElement('details');
+            if (isRoot || keyName === 'Subworkflows' || keyName === 'State') {
+                details.open = true; // Auto-open high level structures
+            }
+
+            const summary = document.createElement('summary');
+            const summaryText = document.createElement('span');
+            summaryText.className = 'key';
+            
+            // Format arrays differently from objects in the summary
+            const isArray = Array.isArray(data);
+            summaryText.textContent = keyName ? keyName + (isArray ? ' [' + data.length + ']' : '') : (isArray ? 'Array' : 'Object');
+            summary.appendChild(summaryText);
+            details.appendChild(summary);
+
+            const ul = document.createElement('ul');
+            for (const key in data) {
+                const li = document.createElement('li');
+                
+                if (typeof data[key] === 'object' && data[key] !== null) {
+                    li.appendChild(renderNode(data[key], key));
+                } else {
+                    const keySpan = document.createElement('span');
+                    keySpan.className = 'key';
+                    keySpan.textContent = key + ': ';
+                    li.appendChild(keySpan);
+                    li.appendChild(renderNode(data[key]));
+                }
+                ul.appendChild(li);
+            }
+            
+            details.appendChild(ul);
+            return details;
+        }
+
+        function toggleAll(open) {
+            document.querySelectorAll('details').forEach(d => d.open = open);
+        }
+
+        document.getElementById('app').appendChild(renderNode(telemetryData, 'Execution Lifecycle', true));
+    </script>
+</body>
+</html>";
+    }
 }

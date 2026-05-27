@@ -7,6 +7,7 @@ using Eobim.RevitApi.Framework;
 using Eobim.RevitApi.MultiStepActions;
 using Eobim.RevitApi.MultiStepActions.Contour;
 using Eobim.RevitApi.MultiStepActions.Face;
+using Eobim.RevitApi.MultiStepActions.Grid;
 using Eobim.RevitApi.SelectionFilter;
 using UIFramework;
 
@@ -23,8 +24,15 @@ public class DynamicFLoorPlanOptionGeneration : ExternalCommand<object, DynamicF
         Add(PromptUserToPickRoom);
         Add(ValidateIfSelectedRoomIsInsideOfSubdivisibleArea);
         Add(InterruptWorkflowIfRoomIsNotInsideAnySubdivisibleArea);
-        Add(GenerateSubdivisibleAreaGrid);
+        Add(GetContainingSubdivisibleArea);
+        Add(GetContainingSubdivisibleAreaBoundarySegments);
+        Add(GetContainingSubdivisibleAreaBottomFace);
+        Add(GenerateContainingAreaGridLines);
+        Add(GetRoomBoundarySegments);
+        Add(GetRoomBottomFace);
+        Add(GenerateContainingAreaGridRemainingGridOutsideRoom);
         Add(SetResult);
+
     }
 
     public void GetAllColumns(List<string> _telemetry)
@@ -112,39 +120,82 @@ public class DynamicFLoorPlanOptionGeneration : ExternalCommand<object, DynamicF
             StopWorkflow($"The room is not inside any subdivisible area.", WorkflowInterruptionReason.Success);
         }
     }
-
-    public void GenerateSubdivisibleAreaGrid(List<string> _telemetry)
+    
+    public void GetContainingSubdivisibleArea(List<string> _telemetry)
     {
-        var area = _dto.SubdivisibleAreas.First(a => a.Id.Equals(_dto.RoomIsInsideASubdivisibleArea.containingAreaId));
+        _dto.ContainingSubdivisibleArea = _dto.SubdivisibleAreas.First(a => a.Id.Equals(_dto.RoomIsInsideASubdivisibleArea.containingAreaId));
+    }
 
+    public void GetContainingSubdivisibleAreaBoundarySegments(List<string> _telemetry)
+    {
         var options = new SpatialElementBoundaryOptions
         {
             SpatialElementBoundaryLocation = SpatialElementBoundaryLocation.Finish,
         };
 
-        var areaBoundarySegments = area.GetBoundarySegments(options).Select(a => a.ToList()).ToList();
+        _dto.ContainingSubdivisibleAreaBoundarySegments = _dto.ContainingSubdivisibleArea.GetBoundarySegments(options).Select(a => a.ToList()).ToList();
+    }
 
-        var areaBottomFace = RunSubworkflow<
+    public void GetContainingSubdivisibleAreaBottomFace(List<string> _telemetry)
+    {
+        _dto.ContainingSubdivisibleAreaBottomFace = RunSubworkflow<
               Face_Z0FromBoundarySegmentsArgs
             , Face_Z0FromBoundarySegments
             , Face_Z0FromBoundarySegmentsDto
             , Autodesk.Revit.DB.Face
             >
             (
-                new(areaBoundarySegments)
+                new(_dto.ContainingSubdivisibleAreaBoundarySegments)
             );
+    }
 
-        var gridLines = RunSubworkflow<
-              Grid_LinesFromFaceArgs
-            , Grid_LinesFromFace
-            , Grid_LinesFromFaceDto
+    public void GenerateContainingAreaGridLines(List<string> _telemetry)
+    {
+        _dto.ContainingAreaGridLines = RunSubworkflow<
+              Grid_LinesFromInternalOriginXYAlignedFaceArgs
+            , Grid_LinesFromInternalOriginXYAlignedFace
+            , Grid_LinesFromInternalOriginXYAlignedFaceDto
             , List<Line>
             >
             (
-                new(areaBottomFace)
+                new(_dto.ContainingSubdivisibleAreaBottomFace, 3, 3, false)
             );
+    }
 
-        _dto.ContainingAreaGridLines = gridLines;
+    public void GetRoomBoundarySegments(List<string> _telemetry)
+    {
+        var options = new SpatialElementBoundaryOptions
+        {
+            SpatialElementBoundaryLocation = SpatialElementBoundaryLocation.Finish,
+        };
+
+        _dto.RoomBoundarySegments = _dto.SelectedRoom.GetBoundarySegments(options).Select(a => a.ToList()).ToList();
+    }
+
+    public void GetRoomBottomFace(List<string> _telemetry)
+    {
+        _dto.RoomBottomFace = RunSubworkflow<
+              Face_Z0FromBoundarySegmentsArgs
+            , Face_Z0FromBoundarySegments
+            , Face_Z0FromBoundarySegmentsDto
+            , Autodesk.Revit.DB.Face
+            >
+            (
+                new(_dto.RoomBoundarySegments)
+            );
+    }
+
+    public void GenerateContainingAreaGridRemainingGridOutsideRoom(List<string> _telemetry)
+    {
+        _dto.ContainingAreaGridRemainingGridOutsideRoom = RunSubworkflow<
+              Grid_LinesRemainingOutsideFaceArgs
+            , Grid_LinesRemainingOutsideFace
+            , Grid_LinesRemainingOutsideFaceDto
+            , List<Line>
+            >
+            (
+                new(_dto.ContainingAreaGridLines, _dto.RoomBottomFace, 3, 3, true)
+            );
     }
 
     
@@ -168,7 +219,28 @@ public class DynamicFLoorPlanOptionGenerationDto : Dto
 
     [Print(nameof(TypeFormatter.BooleanAndNullableElementIdTuple))]
     public (bool isInsideAnyArea, ElementId? containingAreaId) RoomIsInsideASubdivisibleArea { get; set; }
-    public SubdivisibleRoomsWithInsideColumns SubdivisibleRoomWithInsideColumn { get; set; }
+
+    [Print(nameof(TypeFormatter.Area))]
+    public Area ContainingSubdivisibleArea { get; set; }
+
+
+    public List<List<BoundarySegment>> ContainingSubdivisibleAreaBoundarySegments { get; set; }
+
+    [Print(nameof(TypeFormatter.Face))]
+    public Autodesk.Revit.DB.Face ContainingSubdivisibleAreaBottomFace { get; set; }
+
+    [Print(nameof(TypeFormatter.LineList))]
+    public List<Line> ContainingAreaGridLines { get; set; }
+
+    [Print(nameof(TypeFormatter.BoundarySegmentListOfList))]
+    public List<List<BoundarySegment>> RoomBoundarySegments { get; set; }
+
+    [Print(nameof(TypeFormatter.Face))]
+    public Autodesk.Revit.DB.Face RoomBottomFace { get; set; }
+
+
+    [Print(nameof(TypeFormatter.LineList))]
+    public List<Line> ContainingAreaGridRemainingGridOutsideRoom { get; set; }
 }
 
 public class SubdivisibleRoomsWithInsideColumns 

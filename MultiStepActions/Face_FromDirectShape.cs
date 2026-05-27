@@ -5,7 +5,7 @@ namespace Eobim.RevitApi.MultiStepActions;
 
 public record Face_FromDirectShapeArgs(DirectShape DirectShape, string FaceToObtain);
 
-public class Face_FromDirectShape : MultistepObservableAction<Face_FromDirectShapeArgs, Face_FromDirectShapeDto, Face>
+public class Face_FromDirectShape : MultistepObservableAction<Face_FromDirectShapeArgs, Face_FromDirectShapeDto, Autodesk.Revit.DB.Face>
 {
     public override void SafelyInitializeInputs(Face_FromDirectShapeArgs args)
     {
@@ -22,7 +22,7 @@ public class Face_FromDirectShape : MultistepObservableAction<Face_FromDirectSha
 
     public void GetFaces(List<string> _stateTrace)
     {
-        var result = new List<Face>();
+        var result = new List<Autodesk.Revit.DB.Face>();
 
         // CRITICAL: ComputeReferences must be true to use the face later
         var options = new Options { ComputeReferences = true };
@@ -38,13 +38,13 @@ public class Face_FromDirectShape : MultistepObservableAction<Face_FromDirectSha
     }
 
     // Helper method to unwrap GeometryInstances
-    private void ExtractFacesFromGeometry(GeometryElement geomElem, List<Face> faceList)
+    private void ExtractFacesFromGeometry(GeometryElement geomElem, List<Autodesk.Revit.DB.Face> faceList)
     {
         foreach (var geoObj in geomElem)
         {
             if (geoObj is Solid solid && solid.Faces.Size > 0)
             {
-                foreach (Face face in solid.Faces)
+                foreach (Autodesk.Revit.DB.Face face in solid.Faces)
                 {
                     faceList.Add(face);
                 }
@@ -63,7 +63,7 @@ public class Face_FromDirectShape : MultistepObservableAction<Face_FromDirectSha
 
     public void GetInterestFace(List<string> _stateTrace)
     {
-        Face result = null;
+        Autodesk.Revit.DB.Face result = null;
 
         if (_dto.FaceToObtain.ToLower() == "top")
         {
@@ -78,9 +78,9 @@ public class Face_FromDirectShape : MultistepObservableAction<Face_FromDirectSha
         _dto.ObtainedFace = result;
     }
 
-    public Face GetHighestTopFaceByNormal(List<Face> faces)
+    public Autodesk.Revit.DB.Face GetHighestTopFaceByNormal(List<Autodesk.Revit.DB.Face> faces)
     {
-        Face topFace = null;
+        Autodesk.Revit.DB.Face topFace = null;
         double maxZ = double.MinValue;
 
         foreach (var face in faces)
@@ -114,6 +114,6 @@ public class Face_FromDirectShapeDto : Dto
 {
     public DirectShape DirectShape { get; set; }
     public string FaceToObtain { get; set; }
-    public List<Face> Faces { get; set; }
-    public Face ObtainedFace { get; set; }
+    public List<Autodesk.Revit.DB.Face> Faces { get; set; }
+    public Autodesk.Revit.DB.Face ObtainedFace { get; set; }
 }

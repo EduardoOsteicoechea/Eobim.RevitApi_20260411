@@ -159,15 +159,18 @@ public class Area_GetInternalRooms : MultistepObservableAction<Area_GetInternalR
 
         _dto.RoomPoints = result;
     }
+
     public void ValidateIfAllRoomPointsAreInsideSolid(List<string> _telemetry)
     {
         var result = false;
+        ElementId containingAreaId = null;
 
         var roomPointsCount = _dto.RoomPoints.Count;
 
         for (int i = 0; i < _dto.AreasIdsWithZ0SolidsBottomFaces.Count; i++)
         {
-            var face = _dto.AreasIdsWithZ0SolidsBottomFaces[i].face;
+            var currentArea = _dto.AreasIdsWithZ0SolidsBottomFaces[i];
+            var face = currentArea.face;
 
             bool allPointsInThisArea = true;
 
@@ -182,14 +185,17 @@ public class Area_GetInternalRooms : MultistepObservableAction<Area_GetInternalR
                 }
             }
 
+            // If this specific area contains all the points, record its ID and stop checking
             if (allPointsInThisArea)
             {
                 result = true;
+                containingAreaId = currentArea.areaId;
                 break;
             }
         }
 
-        _dto.RoomIsInsideValidation = (result, result ? _dto.SubdivisibleAreas.FirstOrDefault()?.Id : (ElementId?)null);
+        // Now it passes the actual matched ID instead of blindly grabbing the first one
+        _dto.RoomIsInsideValidation = (result, containingAreaId);
     }
 
     private bool IsPointOnFace(XYZ point, Autodesk.Revit.DB.Face face)
@@ -217,9 +223,14 @@ public class Area_GetInternalRooms : MultistepObservableAction<Area_GetInternalR
 
 public class Area_GetInternalRoomsDto : Dto
 {
+    [Print(nameof(TypeFormatter.AreaList))]
     public List<Area> SubdivisibleAreas { get; set; }
+
+    [Print(nameof(TypeFormatter.Room))]
     public Room Room { get; set; }
     public Area_GetInternalRoomsOptions GetInternalRoomsOptions { get; set; }
+
+    [Print(nameof(TypeFormatter.AreaList))]
     public List<Area> AreasOnRoomLevel { get; set; }
     public List<(ElementId areaId, List<List<BoundarySegment>> boundarySegments)> AreasIdsWithBoundarySegments { get; set; }
     public List<(ElementId areaId, List<CountourSegment> countourSegments)> AreasIdsWithContourSegments { get; set; }
@@ -227,6 +238,10 @@ public class Area_GetInternalRoomsDto : Dto
     public List<CountourSegment> RoomContours { get; set; }
     public List<(ElementId areaId, Solid solid)> AreasIdsWithZ0Solids { get; set; }
     public List<(ElementId areaId, Autodesk.Revit.DB.Face face)> AreasIdsWithZ0SolidsBottomFaces { get; set; }
+
+    [Print(nameof(TypeFormatter.XYZList))]
     public List<XYZ> RoomPoints { get; set; }
+
+    [Print(nameof(TypeFormatter.BooleanAndNullableElementIdTuple))]
     public (bool, ElementId?) RoomIsInsideValidation { get; set; }
 }

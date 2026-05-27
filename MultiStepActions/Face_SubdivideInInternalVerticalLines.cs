@@ -3,7 +3,7 @@ using Eobim.RevitApi.Framework;
 
 namespace Eobim.RevitApi.MultiStepActions;
 
-public record Face_SubdivideInInternalLinesArgs(Face FaceToSubdivide, double SubdivisionSeparation, SubdivisionAxis SubdivisionBasis);
+public record Face_SubdivideInInternalLinesArgs(Autodesk.Revit.DB.Face FaceToSubdivide, double SubdivisionSeparation, SubdivisionAxis SubdivisionBasis);
 
 public class Face_SubdivideInInternalLines : MultistepObservableAction<Face_SubdivideInInternalLinesArgs, Face_SubdivideInInternalLinesDto, List<Line>>
 {
@@ -228,7 +228,7 @@ public class Face_SubdivideInInternalLines : MultistepObservableAction<Face_Subd
 public class Face_SubdivideInInternalLinesDto : Dto
 {
     [Print(nameof(TypeFormatter.Face))]
-    public Face FaceToSubdivide { get; set; }
+    public Autodesk.Revit.DB.Face FaceToSubdivide { get; set; }
 
     [Print(nameof(TypeFormatter.Double))]
     public double SubdivisionSeparation { get; set; }

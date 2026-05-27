@@ -361,6 +361,15 @@ public static class TypeFormatter
         return SafeReadGeometry(data, d => $"{d.ApproximateLength}", "Curve");
     }
 
+    public static string BoundingBoxUV(BoundingBoxUV data)
+    {
+        return SafeReadGeometry(
+            data,
+            d => $"Min: ({d.Min.U:F3}, {d.Min.V:F3}) | Max: ({d.Max.U:F3}, {d.Max.V:F3})",
+            "BoundingBoxUV"
+        );
+    }
+
     public static string CurveRich(Curve data)
     {
         return SafeReadGeometry(data, d => $"(Is Line:{d is Line} | {nameof(d.ApproximateLength)}: {d.ApproximateLength} | GetEndPoint(0): {d.GetEndPoint(0)} | GetEndPoint(1): {d.GetEndPoint(1)})", "Curve");

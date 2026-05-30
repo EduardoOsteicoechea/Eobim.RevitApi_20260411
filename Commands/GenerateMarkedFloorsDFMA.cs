@@ -130,6 +130,9 @@ public class GenerateMarkedFloorsDFMADto : Dto
     [Print(nameof(TypeFormatter.FamilySymbol))]
     public FamilySymbol? SheetFamilySymbol { get; set; }
 
+    [Print(nameof(TypeFormatter.FamilySymbol))]
+    public FamilySymbol? TextNoteFamilySymbol { get; set; }
+
     [Print(nameof(TypeFormatter.FloorList))]
     public List<Floor>? InterestFloors { get; set; }
 }

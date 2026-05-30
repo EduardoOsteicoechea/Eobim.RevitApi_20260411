@@ -29,7 +29,7 @@ public class DirectShape_ModelPlanarByBoundaryLines : MultistepObservableAction<
         Add(AdjustLineHeight);
         Add(GetCurveLoop);
         Add(GetEnclosingDimmensions);
-        Add(PlaceEnclosingModelLines, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
+        //Add(PlaceEnclosingModelLines, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
         Add(GenerateSolid);
         Add(SetShape, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
         Add(ExtractDirectShapeLeadFace);

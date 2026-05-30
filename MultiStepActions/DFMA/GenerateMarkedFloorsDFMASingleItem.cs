@@ -47,6 +47,10 @@ public class GenerateMarkedFloorsDFMASingleItem : MultistepObservableAction<Gene
         /////////////////////////////////
         /// Floor Horizontal Faces
         /////////////////////////////////
+
+        /////////////////////////////////
+        /// Bottom Faces
+        /////////////////////////////////
         /* 3 */
         Add(GetBotttomFaceContourLines);
         /* 4 */
@@ -55,65 +59,71 @@ public class GenerateMarkedFloorsDFMASingleItem : MultistepObservableAction<Gene
         Add(GenerateCurveLoopInternalOffsetBoundaryWorkflow);
         /* 6 */
         Add(ModelBottomInternalFace);
-        ///* 6 */
-        //Add(ModelTopFace);
-        ///* 7 */
-        //Add(GenerateCurveLoopInternalOffsetBoundaryWorkflowForTopFace);
-        ///* 8 */
-        //Add(ModelTopInternalFace);
+
+        /////////////////////////////////
+        /// Top Faces
+        /////////////////////////////////
+        /* 7 */
+        Add(GetTopFaceContourLines);
+        /* 8 */
+        Add(ModelTopFace);
+        /* 9 */
+        Add(GenerateCurveLoopInternalOffsetBoundaryWorkflowForTopFace);
+        /* 10 */
+        Add(ModelTopInternalFace);
 
         ///////////////////////////////////
         ///// Floor Vertical Outer Faces
         ///////////////////////////////////
-        ///* 11 */
-        //Add(GenerateBottomFaceOffsetOuterCurveLoop);
-        ///* 12 */
-        //Add(GenerateBottomFaceOuterCurveLoopDisplacedLines);
-        ///* 13 */
-        //Add(GenerateBottomFaceOuterCurveLoopDisplacedLinesPiecesContoursCurveLoops);
-        ///* 14 */
-        //Add(ModelBottomFaceOuterCurveLoopDisplacedLinesPiecesContours);
+        /* 11 */
+        Add(GenerateBottomFaceOffsetOuterCurveLoop);
+        /* 12 */
+        Add(GenerateBottomFaceOuterCurveLoopDisplacedLines);
+        /* 13 */
+        Add(GenerateBottomFaceOuterCurveLoopDisplacedLinesPiecesContoursCurveLoops);
+        /* 14 */
+        Add(ModelBottomFaceOuterCurveLoopDisplacedLinesPiecesContours);
 
-        ///////////////////////////////////
-        ///// Floor Vertical Internal Supports generation
-        ///////////////////////////////////
-        ///* 15 */
-        //Add(GetInternalBottomShapeTopFace);
-        ///* 16 */
-        //Add(GenerateBottomShapeTopFaceVerticalSubdivisoryLines);
-        ///* 17 */
-        //Add(GenerateBottomShapeTopFaceVerticalSubdivisoryLinesContours);
-        ///* 18 */
-        //Add(ModelBottomShapeTopFaceVerticalSubdivisoryLines);
+        /////////////////////////////////
+        /// Floor Vertical Internal Supports generation
+        /////////////////////////////////
+        /* 15 */
+        Add(GetInternalBottomShapeTopFace);
+        /* 16 */
+        Add(GenerateBottomShapeTopFaceVerticalSubdivisoryLines);
+        /* 17 */
+        Add(GenerateBottomShapeTopFaceVerticalSubdivisoryLinesContours);
+        /* 18 */
+        Add(ModelBottomShapeTopFaceVerticalSubdivisoryLines);
 
-        ///////////////////////////////////
-        ///// Floor Horizontal Internal Supports generation
-        ///////////////////////////////////
-        ///* 19 */
-        //Add(GenerateBottomShapeTopFaceHorizontalSubdivisoryLines);
-        ///* 20 */
-        //Add(GenerateBottomShapeTopFaceHorizontalSubdivisoryLinesIntersectionsWithVerticalSubdivisoryLines);
-        ///* 21 */
-        //Add(GenerateBottomShapeTopFaceHorizontalSubdivisoryLinesContours);
-        ///* 22 */
-        //Add(ModelBottomShapeTopFaceHorizontalSubdivisoryLines);
+        /////////////////////////////////
+        /// Floor Horizontal Internal Supports generation
+        /////////////////////////////////
+        /* 19 */
+        Add(GenerateBottomShapeTopFaceHorizontalSubdivisoryLines);
+        /* 20 */
+        Add(GenerateBottomShapeTopFaceHorizontalSubdivisoryLinesIntersectionsWithVerticalSubdivisoryLines);
+        /* 21 */
+        Add(GenerateBottomShapeTopFaceHorizontalSubdivisoryLinesContours);
+        /* 22 */
+        Add(ModelBottomShapeTopFaceHorizontalSubdivisoryLines);
 
         ///////////////////////////////////
         ///// Final Output & Fabrication (DXF & PDF)
         ///////////////////////////////////
-        ///* 23 */
-        //Add(OrderlyPlaceFaces);
-        ///* 26 */
-        //Add(ArrangePiecesInGroups, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
-        ///* 27 */
-        //Add(GenerateSheetsForArrangedGroups, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
-        ///* 28 */
-        //Add(ExportSheetsToPDF);
+        /* 23 */
+        Add(OrderlyPlaceFaces);
+        /* 26 */
+        Add(ArrangePiecesInGroups, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
+        /* 27 */
+        Add(GenerateSheetsForArrangedGroups, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
+        /* 28 */
+        Add(ExportSheetsToPDF);
 
-        ///////////////////////////////////
-        ///// Cleanup
-        ///////////////////////////////////
-        //Add(HideInterestFloor, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
+        /////////////////////////////////
+        /// Cleanup
+        /////////////////////////////////
+        Add(HideInterestFloor, true, TransactionManagementOptions.RequiresDedicatedTransactionForAction);
     }
 
     /* 1 */
@@ -129,16 +139,21 @@ public class GenerateMarkedFloorsDFMASingleItem : MultistepObservableAction<Gene
             , UnitTypeId.Meters
             );
 
+        // Keep scale here: We need the cardboard thickness artificially pumped up so Revit doesn't throw short-curve errors
         _dto.ScaledCardboardThicknessInInternalUnits = UnitUtils.ConvertToInternalUnits(
             _dto.UnscaledCardboardThicknessInMeters * _dto.FabricationScale
             , UnitTypeId.Meters
             );
+
+        // REMOVED SCALE HERE: The physical grid must remain 1:1 with the model
         _dto.ScaledYAxisInternalSupportSeparationInInternalUnits = UnitUtils.ConvertToInternalUnits(
-            _dto.UnscaledYAxisInternalSupportSeparationInMeters * _dto.FabricationScale
+            _dto.UnscaledYAxisInternalSupportSeparationInMeters
             , UnitTypeId.Meters
             );
+
+        // REMOVED SCALE HERE: The physical grid must remain 1:1 with the model
         _dto.ScaledXAxisInternalSupportSeparationInInternalUnits = UnitUtils.ConvertToInternalUnits(
-            _dto.UnscaledXAxisInternalSupportSeparationInMeters * _dto.FabricationScale
+            _dto.UnscaledXAxisInternalSupportSeparationInMeters
             , UnitTypeId.Meters
             );
 
@@ -157,11 +172,11 @@ public class GenerateMarkedFloorsDFMASingleItem : MultistepObservableAction<Gene
             FileName = _dto.PDFDocumentName,
             Combine = true,
             ZoomType = ZoomType.Zoom,
-            ZoomPercentage = 100, // Forces 1:20 scale to be respected instead of fitting to page
+            ZoomPercentage = 100,
             HideScopeBoxes = true,
             HideUnreferencedViewTags = true,
             HideReferencePlane = true,
-            PaperFormat = ExportPaperFormat.Default // Uses the Family dimensions
+            PaperFormat = ExportPaperFormat.Default
         };
     }
 
@@ -193,6 +208,7 @@ public class GenerateMarkedFloorsDFMASingleItem : MultistepObservableAction<Gene
     /// Bottom Face
     /////////////////////////////////
     /////////////////////////////////
+    
     public void GetBotttomFaceContourLines(List<string> _telemetry)
     {
         var contuourCurves = _dto.InterestFloorDFMAData.BottomFaceOuterCurveLoop.Select(a => a as Curve).ToList()!;
@@ -288,11 +304,36 @@ public class GenerateMarkedFloorsDFMASingleItem : MultistepObservableAction<Gene
     /// Top Face
     /////////////////////////////////
     /////////////////////////////////
+    
+    public void GetTopFaceContourLines(List<string> _telemetry)
+    {
+        var contuourCurves = _dto.InterestFloorDFMAData.TopFaceOuterCurveLoop.Select(a => a as Curve).ToList()!;
+
+        var result = new List<Line>();
+
+        foreach (var item in contuourCurves)
+        {
+            var points = item.Tessellate();
+
+            for (int i = 0; i < points.Count - 1; i++)
+            {
+                var line = Line.CreateBound(points[i], points[i + 1]);
+                result.Add(line);
+            }
+        }
+
+        if (result is null) throw new NullReferenceException("The resulting list of contour lines is null, which may indicate an issue with the tessellation process.");
+
+        if (!result.Any()) throw new InvalidOperationException("The resulting list of contour lines is empty, which may indicate an issue with the tessellation process.");
+
+        _dto.TopFaceContourLines = result;
+    }
+
     public void ModelTopFace(List<string> _telemetry)
     {
         var contour = new PieceContour
         {
-            ContourLines = _dto.InterestFloorDFMAData.TopFaceOuterCurveLoop.Select(a => a as Line).ToList()!
+            ContourLines = _dto.TopFaceContourLines
         };
 
         _dto.TopFaceDirectShapeDMFAData = RunSubworkflow<
@@ -323,7 +364,7 @@ public class GenerateMarkedFloorsDFMASingleItem : MultistepObservableAction<Gene
                 CurveLoop: _dto.InterestFloorDFMAData.TopFaceOuterCurveLoop!,
                 Offset: _dto.ScaledCardboardThicknessInInternalUnits,
                 HeightAdjustment: -_dto.ScaledCardboardThicknessInInternalUnits,
-                FaceDirection: XYZ.BasisZ
+                FaceDirection: XYZ.BasisZ.Negate()
             )
         );
     }
@@ -367,7 +408,7 @@ public class GenerateMarkedFloorsDFMASingleItem : MultistepObservableAction<Gene
         >(
             new(
                 CurveLoop: _dto.InterestFloorDFMAData.BottomFaceOuterCurveLoop!,
-                Offset: -_dto.ScaledCardboardThicknessInInternalUnits / 2,
+                Offset: _dto.ScaledCardboardThicknessInInternalUnits / 2,
                 HeightAdjustment: _dto.ScaledCardboardThicknessInInternalUnits,
                 FaceDirection: XYZ.BasisZ
             )
@@ -439,6 +480,7 @@ public class GenerateMarkedFloorsDFMASingleItem : MultistepObservableAction<Gene
     /// Floor Vertical Internal Supports generation
     /////////////////////////////////
     /////////////////////////////////
+    
     public void GetInternalBottomShapeTopFace(List<string> _telemetry)
     {
         _dto.InternalBottomShapeTopFace = RunSubworkflow<
@@ -1218,26 +1260,34 @@ public class GenerateMarkedFloorsDFMASingleItemDto : Dto
     [Print(nameof(TypeFormatter.PDFExportOptions))]
     public PDFExportOptions? PDFExportOptions { get; set; }
 
-
-
     /////////////////////////////////
     /// Floor Data Extraction
     /////////////////////////////////
+
     public Floor InterestFloor { get; set; }
     public FloorDFMAData InterestFloorDFMAData { get; set; }
+
+    /////////////////////////////////
+    /// Bottom Face
+    /////////////////////////////////
+
     public List<Line> BottomFaceContourLines { get; set; }
-
-
-    /////////////////////////////////
-    /// Floor Data
-    /////////////////////////////////
-    public List<Line> BottomFaceOuterCurveLoopInternalOffsetBoundary { get; set; }
-    public List<Line> TopFaceOuterCurveLoopInternalOffsetBoundary { get; set; }
-
     public DirectShapeDMFAData BottomFaceDirectShapeDMFAData { get; set; }
     public DirectShapeDMFAData BottomInternalFaceDirectShapeDMFAData { get; set; }
+    public List<Line> BottomFaceOuterCurveLoopInternalOffsetBoundary { get; set; }
+
+    /////////////////////////////////
+    /// Top Face
+    /////////////////////////////////
+
+    public List<Line> TopFaceContourLines { get; set; }
     public DirectShapeDMFAData TopFaceDirectShapeDMFAData { get; set; }
     public DirectShapeDMFAData TopInternalFaceDirectShapeDMFAData { get; set; }
+    public List<Line> TopFaceOuterCurveLoopInternalOffsetBoundary { get; set; }
+
+    /////////////////////////////////
+    /// Vertical External Faces between Top and Bottom
+    /////////////////////////////////
 
     public List<Line> BottomFaceOffsetOuterCurveLoop { get; set; }
     public List<Line> BottomFaceOuterCurveLoopDisplacedLines { get; set; }

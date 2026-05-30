@@ -84,16 +84,57 @@ public class CurveLoop_GenerateInnerOffsetBoundary : MultistepObservableAction<C
         _dto.ZAdjustedCurveLoopLines = result;
     }
 
+    //public void GenerateOffsetLines(List<string> _tracing)
+    //{
+    //    var result = new List<Line>();
+
+    //    foreach (var curveLoopLine in _dto.ZAdjustedCurveLoopLines)
+    //    {
+    //        var p1 = curveLoopLine.GetEndPoint(0) + (curveLoopLine.Direction.Negate() * 1);
+    //        var p2 = curveLoopLine.GetEndPoint(1) + (curveLoopLine.Direction * 1); 
+
+    //        var offsetDirection = curveLoopLine.Direction.CrossProduct(XYZ.BasisZ) * (_dto.FaceDirection.IsAlmostEqualTo(XYZ.BasisZ) ? -1 : 1);
+
+    //        var displacedP1 = p1 + (offsetDirection * _dto.Offset);
+    //        var displacedP2 = p2 + (offsetDirection * _dto.Offset);
+
+    //        var displacedLine = Line.CreateBound(displacedP1, displacedP2);
+
+    //        result.Add(displacedLine);
+    //    }
+
+    //    if (result is null) throw new ArgumentNullException(nameof(result));
+
+    //    _dto.OffsetLines = result;
+    //}
+
     public void GenerateOffsetLines(List<string> _tracing)
     {
         var result = new List<Line>();
 
+        // 1. Ask the CurveLoop itself how it is winding relative to the global UP direction.
+        // This abstracts away whether the loop came from a top face or bottom face.
+        bool isCCW = _dto.CurveLoop.IsCounterclockwise(XYZ.BasisZ);
+
+        // 2. Set the multiplier based solely on the intrinsic winding order.
+        // A CrossProduct with BasisZ ALWAYS points to the RIGHT of the curve's direction.
+        // - For CCW loops, RIGHT is OUTSIDE. To go INSIDE, we must invert it (-1).
+        // - For CW loops, RIGHT is INSIDE. We leave it as is (1).
+        int offsetMultiplier = isCCW ? -1 : 1;
+
+        _tracing.Add($"CurveLoop IsCCW: {isCCW}. Using Offset Multiplier: {offsetMultiplier}");
+
         foreach (var curveLoopLine in _dto.ZAdjustedCurveLoopLines)
         {
+            // Extend the lines slightly to ensure clean intersections later
             var p1 = curveLoopLine.GetEndPoint(0) + (curveLoopLine.Direction.Negate() * 1);
-            var p2 = curveLoopLine.GetEndPoint(1) + (curveLoopLine.Direction * 1); 
-            
-            var offsetDirection = curveLoopLine.Direction.CrossProduct(XYZ.BasisZ) * (_dto.FaceDirection.IsAlmostEqualTo(XYZ.BasisZ) ? -1 : 1);
+            var p2 = curveLoopLine.GetEndPoint(1) + (curveLoopLine.Direction * 1);
+
+            // Generate the perpendicular vector (always points right)
+            var rightPointingVector = curveLoopLine.Direction.CrossProduct(XYZ.BasisZ).Normalize();
+
+            // Apply the multiplier to guarantee we are pointing INSIDE the shape
+            var offsetDirection = rightPointingVector * offsetMultiplier;
 
             var displacedP1 = p1 + (offsetDirection * _dto.Offset);
             var displacedP2 = p2 + (offsetDirection * _dto.Offset);
@@ -103,57 +144,10 @@ public class CurveLoop_GenerateInnerOffsetBoundary : MultistepObservableAction<C
             result.Add(displacedLine);
         }
 
-        if (result is null) throw new ArgumentNullException(nameof(result));
+        if (result.Count == 0) throw new ArgumentNullException(nameof(result));
 
         _dto.OffsetLines = result;
     }
-
-    //public void ExtractExactOffsetVertices(List<string> _tracing)
-    //{
-    //    var offsetLines = _dto.OffsetLines;
-    //    int count = offsetLines.Count;
-
-    //    if (count < 3) throw new InvalidOperationException("Cannot form a closed loop with less than 3 lines.");
-
-    //    var exactVertices = new List<XYZ>();
-
-    //    for (int i = 0; i < count; i++)
-    //    {
-    //        var currentLine = offsetLines[i];
-
-    //        // Modulo math safely wraps the first index back to the last index
-    //        var previousLine = offsetLines[(i - 1 + count) % count];
-
-    //        var unboundCurrent = (Line)currentLine.Clone();
-    //        unboundCurrent.MakeUnbound();
-
-    //        var unboundPrev = (Line)previousLine.Clone();
-    //        unboundPrev.MakeUnbound();
-
-    //        var intersectResult = unboundPrev.Intersect(unboundCurrent, CurveIntersectResultOption.Detailed);
-
-    //        if (intersectResult.Result == SetComparisonResult.Overlap)
-    //        {
-    //            var overlaps = intersectResult.GetOverlaps();
-
-    //            if (overlaps != null && overlaps.Count > 0)
-    //            {
-    //                XYZ intersectionPoint = overlaps[0].Point;
-    //                exactVertices.Add(intersectionPoint);
-    //            }
-    //            else
-    //            {
-    //                throw new InvalidOperationException($"Overlap detected but no points returned at index {i}.");
-    //            }
-    //        }
-    //        else
-    //        {
-    //            throw new InvalidOperationException($"Failed to find intersection between offset lines at index {i}.");
-    //        }
-    //    }
-
-    //    _dto.ExactOffsetVertices = exactVertices;
-    //}
 
     public void ExtractExactOffsetVertices(List<string> _tracing)
     {

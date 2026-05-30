@@ -194,7 +194,7 @@ public class DynamicFLoorPlanOptionGeneration : ExternalCommand<object, DynamicF
             , List<Line>
             >
             (
-                new(_dto.ContainingAreaGridLines, _dto.RoomBottomFace, 3, 3, true)
+                new(_dto.ContainingAreaGridLines, _dto.RoomBottomFace, true)
             );
     }
 

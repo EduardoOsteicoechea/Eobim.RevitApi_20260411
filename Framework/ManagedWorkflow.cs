@@ -129,7 +129,8 @@ where Dto : class, IDto, new()
                 // Add the HTML report generator here
                 if (_fileSystemManager != null)
                 {
-                    TelemetryHtmlWriter.GenerateHtmlReport(_fileSystemManager.InstanceLogDirectory);
+                    TelemetryWriter.GenerateHtmlReport(_fileSystemManager.InstanceLogDirectory);
+                    TelemetryWriter.GenerateJsonReport(_fileSystemManager.InstanceLogDirectory);
                 }
             }
         }
@@ -205,7 +206,8 @@ where Dto : class, IDto, new()
             // Add the HTML report generator here
             if (_fileSystemManager != null)
             {
-                TelemetryHtmlWriter.GenerateHtmlReport(_fileSystemManager.InstanceLogDirectory);
+                TelemetryWriter.GenerateHtmlReport(_fileSystemManager.InstanceLogDirectory);
+                TelemetryWriter.GenerateJsonReport(_fileSystemManager.InstanceLogDirectory);
             }
         }
     }
@@ -608,7 +610,7 @@ public enum WorkflowInterruptionReason
 
 
 
-public class TelemetryHtmlWriter
+public class TelemetryWriter
 {
     /// <summary>
     /// Traverses the workflow log directory, compiles all JSON files into a single tree,
@@ -696,243 +698,32 @@ public class TelemetryHtmlWriter
         return node;
     }
 
-    //    private static string GetHtmlTemplate()
-    //    {
-    //        // Using standard string literal with single quotes for HTML/JS to avoid heavy escaping in C#
-    //        return @"<!DOCTYPE html>
-    //<html lang='en'>
-    //<head>
-    //    <meta charset='utf-8'>
-    //    <title>Workflow Telemetry Report</title>
-    //    <style>
-    //        body { font-family: Consolas, 'Courier New', monospace; background: #1e1e1e; color: #d4d4d4; padding: 20px; font-size: 14px; }
-    //        button { background: #333; color: #fff; border: 1px solid #555; padding: 5px 10px; cursor: pointer; border-radius: 3px; margin-right: 10px; }
-    //        button:hover { background: #444; }
-    //        details { margin-left: 10px; margin-bottom: 2px; }
-    //        summary { cursor: pointer; padding: 3px; border-radius: 3px; font-weight: bold; }
-    //        summary:hover { background: #2a2d2e; }
-    //        .key { color: #9cdcfe; margin-right: 5px; }
-    //        .string { color: #ce9178; }
-    //        .number { color: #b5cea8; }
-    //        .boolean { color: #569cd6; }
-    //        .null { color: #c586c0; font-style: italic; }
-    //        ul { list-style-type: none; padding-left: 20px; margin: 0; border-left: 1px solid #404040; }
-    //        li { margin: 3px 0; }
-    //        /*.root-container { background: #252526; padding: 20px; border-radius: 5px; border: 1px solid #333; }*/
-    //    </style>
-    //</head>
-    //<body>
-    //    <div id='app' class='root-container'></div>
+    /// <summary>
+    /// Traverses the workflow log directory, compiles all JSON files into a single tree,
+    /// and saves it as a raw JSON report file.
+    /// </summary>
+    /// <param name="rootDirectory">The InstanceLogDirectory of the main ExternalCommand</param>
+    public static void GenerateJsonReport(string rootDirectory)
+    {
+        if (!Directory.Exists(rootDirectory)) return;
 
-    //    <script>
-    //        const telemetryData = {{TELEMETRY_DATA}};
+        var rootNode = BuildTelemetryTree(rootDirectory);
 
-    //        function renderNode(data, keyName = null, isRoot = false) {
+        // Serialize the compiled tree into a formatted string
+        string jsonString = rootNode.ToJsonString(new JsonSerializerOptions
+        {
+            WriteIndented = true,
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+        });
 
-    //            if (data === null) {
-    //                const span = document.createElement('span');
-    //                span.className = 'null';
-    //                span.textContent = 'null';
-    //                return span;
-    //            }
+        // Determine base paths and filename
+        var directoryInfo = new DirectoryInfo(rootDirectory);
+        string reportName = $"{directoryInfo.Name}_Report.json";
+        string outputPath = Path.Combine(directoryInfo.Parent!.FullName, reportName);
 
-    //            const type = typeof data;
-
-    //            if (type !== 'object') {
-    //                const span = document.createElement('span');
-    //                span.className = type;
-    //                span.textContent = type === 'string' ? '""' + data + '""' : data;
-    //                return span;
-    //            }
-
-    //            const details = document.createElement('details');
-
-    //            if (isRoot || keyName === 'Subworkflows' || keyName === 'State') {
-    //                details.open = true;
-    //            }
-
-    //            const summary = document.createElement('summary');
-    //            const summaryText = document.createElement('span');
-    //            summaryText.className = 'key';
-
-    //            // Format arrays differently from objects in the summary
-
-    //            const isArray = Array.isArray(data);
-    //            summaryText.textContent = keyName ? keyName + (isArray ? ' [' + data.length + ']' : '') : (isArray ? 'Array' : 'Object');
-    //            summary.appendChild(summaryText);
-    //            details.appendChild(summary);
-
-    //            const ul = document.createElement('ul');
-
-    //            for (const key in data) {
-    //                const li = document.createElement('li');
-
-    //                if (typeof data[key] === 'object' && data[key] !== null) {
-    //                    li.appendChild(renderNode(data[key], key));
-    //                } else {
-    //                    const keySpan = document.createElement('span');
-    //                    keySpan.className = 'key';
-    //                    keySpan.textContent = key + ': ';
-    //                    li.appendChild(keySpan);
-    //                    li.appendChild(renderNode(data[key]));
-    //                }
-    //                ul.appendChild(li);
-    //            }
-
-    //            details.appendChild(ul);
-
-    //            return details;
-    //        }
-
-    //        document.getElementById('app').appendChild(renderNode(telemetryData, 'Execution Lifecycle', true));
-    //    </script>
-    //</body>
-    //</html>";
-    //    }
-
-    //    private static string GetHtmlTemplate()
-    //    {
-    //        // Using standard string literal with single quotes for HTML/JS to avoid heavy escaping in C#
-    //        return @"<!DOCTYPE html>
-    //<html lang='en'>
-    //<head>
-    //    <meta charset='utf-8'>
-    //    <title>Workflow Telemetry Report</title>
-    //    <style>
-    //        body { font-family: Consolas, 'Courier New', monospace; background: #1e1e1e; color: #d4d4d4; padding: 20px; font-size: 14px; }
-    //        h2 { color: #569cd6; border-bottom: 1px solid #404040; padding-bottom: 10px; }
-    //        .controls { margin-bottom: 20px; }
-    //        button { background: #333; color: #fff; border: 1px solid #555; padding: 5px 10px; cursor: pointer; border-radius: 3px; margin-right: 10px; }
-    //        button:hover { background: #444; }
-    //        details { margin-left: 10px; margin-bottom: 2px; }
-    //        summary { cursor: pointer; padding: 3px; border-radius: 3px; font-weight: bold; }
-    //        summary:hover { background: #2a2d2e; }
-    //        .key { color: #9cdcfe; margin-right: 5px; }
-    //        .string { color: #ce9178; }
-    //        .number { color: #b5cea8; }
-    //        .boolean { color: #569cd6; }
-    //        .null { color: #c586c0; font-style: italic; }
-    //        ul { list-style-type: none; padding-left: 20px; margin: 0; border-left: 1px solid #404040; }
-    //        li { margin: 3px 0; }
-    //        .root-container { background: #252526; padding: 20px; border-radius: 5px; border: 1px solid #333; }
-
-    //        /* New classes for subworkflows */
-    //        .wf-success { color: #89d185; margin-right: 5px; } /* VS Code Green */
-    //        .wf-error { color: #f14c4c; margin-right: 5px; }   /* VS Code Red */
-    //        .wf-name { color: #dcdcaa; font-weight: normal; font-style: italic; } /* VS Code Yellow-ish */
-    //    </style>
-    //</head>
-    //<body>
-    //    <h2>Workflow Telemetry State</h2>
-    //    <div class='controls'>
-    //        <button onclick='toggleAll(true)'>Expand All</button>
-    //        <button onclick='toggleAll(false)'>Collapse All</button>
-    //    </div>
-    //    <div id='app' class='root-container'></div>
-
-    //    <script>
-    //        const telemetryData = {{TELEMETRY_DATA}};
-
-    //        function renderNode(data, keyName = null, isRoot = false) {
-    //            if (data === null) {
-    //                const span = document.createElement('span');
-    //                span.className = 'null';
-    //                span.textContent = 'null';
-    //                return span;
-    //            }
-
-    //            const type = typeof data;
-    //            if (type !== 'object') {
-    //                const span = document.createElement('span');
-    //                span.className = type;
-    //                span.textContent = type === 'string' ? '""' + data + '""' : data;
-    //                return span;
-    //            }
-
-    //            const details = document.createElement('details');
-    //            if (isRoot || keyName === 'Subworkflows' || keyName === 'State') {
-    //                details.open = true; // Auto-open high level structures
-    //            }
-
-    //            const summary = document.createElement('summary');
-    //            const summaryText = document.createElement('span');
-    //            summaryText.className = 'key';
-
-    //            const isArray = Array.isArray(data);
-
-    //            // MAGIC TRICK: Check if this object represents a workflow container
-    //            const isWorkflowObj = data && !isArray && data.hasOwnProperty('WorkflowDirectory');
-
-    //            if (isWorkflowObj && keyName !== null && !isNaN(keyName)) {
-    //                // 1. We are iterating through a Subworkflows array.
-    //                const index1Based = parseInt(keyName) + 1;
-
-    //                // 2. Extract the name safely
-    //                const wfName = (data.State && typeof data.State === 'object' && data.State.WorkflowName) 
-    //                    ? data.State.WorkflowName 
-    //                    : data.WorkflowDirectory;
-
-    //                // 3. Check for failures (including parsing failures from C#)
-    //                let hasError = false;
-    //                if (typeof data.State === 'string' && data.State.startsWith('[Failed')) {
-    //                    hasError = true;
-    //                } else if (data.State && typeof data.State === 'object' && data.State.Failure !== null) {
-    //                    hasError = true;
-    //                }
-
-    //                // Apply our new styling
-    //                summaryText.className = hasError ? 'wf-error' : 'wf-success';
-    //                summaryText.textContent = index1Based;
-
-    //                const nameSpan = document.createElement('span');
-    //                nameSpan.className = 'wf-name';
-    //                nameSpan.textContent = ' - ' + wfName;
-
-    //                summary.appendChild(summaryText);
-    //                summary.appendChild(nameSpan);
-    //            } 
-    //            else 
-    //            {
-    //                // Default fallback formatting
-    //                summaryText.textContent = keyName ? keyName + (isArray ? ' [' + data.length + ']' : '') : (isArray ? 'Array' : 'Object');
-    //                summary.appendChild(summaryText);
-    //            }
-
-    //            details.appendChild(summary);
-
-    //            const ul = document.createElement('ul');
-    //            for (const key in data) {
-    //                const li = document.createElement('li');
-
-    //                if (typeof data[key] === 'object' && data[key] !== null) {
-    //                    li.appendChild(renderNode(data[key], key));
-    //                } else {
-    //                    const keySpan = document.createElement('span');
-    //                    keySpan.className = 'key';
-    //                    keySpan.textContent = key + ': ';
-    //                    li.appendChild(keySpan);
-    //                    li.appendChild(renderNode(data[key]));
-    //                }
-    //                ul.appendChild(li);
-    //            }
-
-    //            details.appendChild(ul);
-    //            return details;
-    //        }
-
-    //        function toggleAll(open) {
-    //            document.querySelectorAll('details').forEach(d => d.open = open);
-    //        }
-
-    //        document.getElementById('app').appendChild(renderNode(telemetryData, 'Execution Lifecycle', true));
-    //    </script>
-    //</body>
-    //</html>";
-    //    }
-
-
-
-
+        // Write the JSON file to disk
+        File.WriteAllText(outputPath, jsonString);
+    }
 
     private static string GetHtmlTemplate()
     {
@@ -943,8 +734,7 @@ public class TelemetryHtmlWriter
     <meta charset='utf-8'>
     <title>Workflow Telemetry</title>
     <style>
-        body { font-family: Consolas, 'Courier New', monospace; background: #1e1e1e; color: #d4d4d4; padding: 20px; font-size: 14px; margin: 0; }
-        details { margin-left: 10px; margin-bottom: 2px; }
+        body { font-family: Consolas, 'Courier New', monospace; background: #1e1e1e; color: #d4d4d4; padding: 10px; font-size: 14px; margin: 0; }
         summary { cursor: pointer; padding: 4px; border-radius: 3px; font-weight: bold; margin-bottom: 2px; }
         summary:hover { background: #2a2d2e; }
         
@@ -957,7 +747,7 @@ public class TelemetryHtmlWriter
         
         ul { list-style-type: none; padding-left: 20px; margin: 0; border-left: 1px solid #404040; }
         li { margin: 3px 0; }
-        .root-container { background: #252526; padding: 20px; border-radius: 5px; border: 1px solid #333; min-height: 95vh; }
+        .root-container { min-height: 95vh; }
         
         /* Workflow Container Styling */
         .wf-summary-success { 
@@ -972,6 +762,9 @@ public class TelemetryHtmlWriter
         }
         .wf-summary-success:hover { background-color: rgba(137, 209, 133, 0.25); }
         .wf-summary-error:hover { background-color: rgba(241, 76, 76, 0.3); }
+        
+        /* Subworkflow / Data Item Name Styling */
+        .wf-name { color: #dcdcaa; font-weight: normal; font-style: italic; }
     </style>
 </head>
 <body>
@@ -1049,26 +842,73 @@ public class TelemetryHtmlWriter
                 // Standard object/array summary styling
                 const summaryText = document.createElement('span');
                 summaryText.className = 'key';
-                summaryText.textContent = keyName ? keyName + (isArray ? ' [' + data.length + ']' : '') : (isArray ? 'Array' : 'Object');
-                summary.appendChild(summaryText);
+                
+                // 1. Detect Tuple/DTO objects
+                if (data && typeof data === 'object' && !isArray && data.hasOwnProperty('Item1')) {
+                    const itemName = data.Item1;
+                    
+                    if (keyName !== null && !isNaN(keyName)) {
+                        summaryText.textContent = keyName + ' - ';
+                        const nameSpan = document.createElement('span');
+                        nameSpan.className = 'wf-name'; 
+                        nameSpan.textContent = itemName;
+                        summary.appendChild(summaryText);
+                        summary.appendChild(nameSpan);
+                    } else {
+                        summaryText.textContent = itemName;
+                        summary.appendChild(summaryText);
+                    }
+                } 
+                // 2. Detect Action objects
+                else if (data && typeof data === 'object' && !isArray && data.hasOwnProperty('Name') && data.hasOwnProperty('ActionNumber')) {
+                    const actionName = data.Name;
+                    
+                    if (keyName !== null && !isNaN(keyName)) {
+                        summaryText.textContent = keyName + ' - ';
+                        const nameSpan = document.createElement('span');
+                        nameSpan.className = 'wf-name'; 
+                        nameSpan.textContent = actionName;
+                        summary.appendChild(summaryText);
+                        summary.appendChild(nameSpan);
+                    } else {
+                        summaryText.textContent = actionName;
+                        summary.appendChild(summaryText);
+                    }
+                } 
+                // Default fallback
+                else {
+                    summaryText.textContent = keyName ? keyName + (isArray ? ' [' + data.length + ']' : '') : (isArray ? 'Array' : 'Object');
+                    summary.appendChild(summaryText);
+                }
             }
             
             details.appendChild(summary);
 
             const ul = document.createElement('ul');
-            for (const key in data) {
+            
+            // 3. Child Generation: If it is a DTO Tuple, SKIP the loop and only render Item2
+            if (data && typeof data === 'object' && !isArray && data.hasOwnProperty('Item1') && data.hasOwnProperty('Item2')) {
                 const li = document.createElement('li');
-                
-                if (typeof data[key] === 'object' && data[key] !== null) {
-                    li.appendChild(renderNode(data[key], key));
-                } else {
-                    const keySpan = document.createElement('span');
-                    keySpan.className = 'key';
-                    keySpan.textContent = key + ': ';
-                    li.appendChild(keySpan);
-                    li.appendChild(renderNode(data[key]));
-                }
+                // Directly pass Item2 without rendering a key
+                li.appendChild(renderNode(data.Item2));
                 ul.appendChild(li);
+            } 
+            // Standard loop for all other objects/arrays
+            else {
+                for (const key in data) {
+                    const li = document.createElement('li');
+                    
+                    if (typeof data[key] === 'object' && data[key] !== null) {
+                        li.appendChild(renderNode(data[key], key));
+                    } else {
+                        const keySpan = document.createElement('span');
+                        keySpan.className = 'key';
+                        keySpan.textContent = key + ': ';
+                        li.appendChild(keySpan);
+                        li.appendChild(renderNode(data[key]));
+                    }
+                    ul.appendChild(li);
+                }
             }
             
             details.appendChild(ul);

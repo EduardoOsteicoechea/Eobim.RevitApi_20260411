@@ -108,6 +108,53 @@ public class CurveLoop_GenerateInnerOffsetBoundary : MultistepObservableAction<C
         _dto.OffsetLines = result;
     }
 
+    //public void ExtractExactOffsetVertices(List<string> _tracing)
+    //{
+    //    var offsetLines = _dto.OffsetLines;
+    //    int count = offsetLines.Count;
+
+    //    if (count < 3) throw new InvalidOperationException("Cannot form a closed loop with less than 3 lines.");
+
+    //    var exactVertices = new List<XYZ>();
+
+    //    for (int i = 0; i < count; i++)
+    //    {
+    //        var currentLine = offsetLines[i];
+
+    //        // Modulo math safely wraps the first index back to the last index
+    //        var previousLine = offsetLines[(i - 1 + count) % count];
+
+    //        var unboundCurrent = (Line)currentLine.Clone();
+    //        unboundCurrent.MakeUnbound();
+
+    //        var unboundPrev = (Line)previousLine.Clone();
+    //        unboundPrev.MakeUnbound();
+
+    //        var intersectResult = unboundPrev.Intersect(unboundCurrent, CurveIntersectResultOption.Detailed);
+
+    //        if (intersectResult.Result == SetComparisonResult.Overlap)
+    //        {
+    //            var overlaps = intersectResult.GetOverlaps();
+
+    //            if (overlaps != null && overlaps.Count > 0)
+    //            {
+    //                XYZ intersectionPoint = overlaps[0].Point;
+    //                exactVertices.Add(intersectionPoint);
+    //            }
+    //            else
+    //            {
+    //                throw new InvalidOperationException($"Overlap detected but no points returned at index {i}.");
+    //            }
+    //        }
+    //        else
+    //        {
+    //            throw new InvalidOperationException($"Failed to find intersection between offset lines at index {i}.");
+    //        }
+    //    }
+
+    //    _dto.ExactOffsetVertices = exactVertices;
+    //}
+
     public void ExtractExactOffsetVertices(List<string> _tracing)
     {
         var offsetLines = _dto.OffsetLines;
@@ -146,9 +193,42 @@ public class CurveLoop_GenerateInnerOffsetBoundary : MultistepObservableAction<C
                     throw new InvalidOperationException($"Overlap detected but no points returned at index {i}.");
                 }
             }
+            else if (intersectResult.Result == SetComparisonResult.Subset || intersectResult.Result == SetComparisonResult.Equal)
+            {
+                // Collinear lines: they lie on the exact same infinite line. 
+                // The logical "corner" is simply the endpoint of the previous segment.
+                _tracing.Add($"Note: Lines at index {i} are collinear ({intersectResult.Result}). Using previous line endpoint.");
+                exactVertices.Add(previousLine.GetEndPoint(1));
+            }
+            else if (intersectResult.Result == SetComparisonResult.Disjoint)
+            {
+                // Parallel lines: Common in tessellated splines where adjacent segments are functionally parallel.
+                // Because they are parallel, they never intersect. The logical "corner" is the gap between them.
+                // We average the end of the previous line and the start of the current line to bridge the gap smoothly.
+                _tracing.Add($"Note: Lines at index {i} are parallel but disjoint. Bridging the gap.");
+                var p1 = previousLine.GetEndPoint(1);
+                var p2 = currentLine.GetEndPoint(0);
+                var midpoint = (p1 + p2) / 2.0;
+                exactVertices.Add(midpoint);
+            }
             else
             {
-                throw new InvalidOperationException($"Failed to find intersection between offset lines at index {i}.");
+                // Fallback for unexpected geometric results
+                var prevDir = unboundPrev.Direction;
+                var currDir = unboundCurrent.Direction;
+                double angleRad = prevDir.AngleTo(currDir);
+
+                string debugMessage =
+                    $"Intersection failed at index {i}.\n" +
+                    $"Comparison Result: {intersectResult.Result}\n" +
+                    $"Prev Line Dir: {prevDir}\n" +
+                    $"Curr Line Dir: {currDir}\n" +
+                    $"Angle Between (rads): {angleRad}\n" +
+                    $"Prev Endpoint 1: {previousLine.GetEndPoint(1)}\n" +
+                    $"Curr Endpoint 0: {currentLine.GetEndPoint(0)}";
+
+                _tracing.Add(debugMessage);
+                throw new InvalidOperationException(debugMessage);
             }
         }
 

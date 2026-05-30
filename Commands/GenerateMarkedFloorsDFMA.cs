@@ -111,7 +111,8 @@ public partial class GenerateMarkedFloorsDFMA : Framework.ExternalCommand<bool, 
                     , UnscaledCardboardThicknessInMeters: 0.00225
                     , UnscaledYAxisInternalSupportSeparationInMeters: 0.5
                     , UnscaledXAxisInternalSupportSeparationInMeters: 0.5
-                    , UnscaledPieceCodeTextSizeInMeters: 0.0015
+                    , UnscaledPieceCodeTextSizeInMeters: 0.001
+                    //, UnscaledPieceCodeTextSizeInMeters: 0.0015
                     , PDFExportPath: @"C:\Users\eduar\Desktop\Room_003\Revit2027\PDF_Exports"
                     , PDFDocumentName: $"DFMA_Fabrication_Sheets_{DateTime.Now:yyyyMMdd_HHmmss}"
                 )

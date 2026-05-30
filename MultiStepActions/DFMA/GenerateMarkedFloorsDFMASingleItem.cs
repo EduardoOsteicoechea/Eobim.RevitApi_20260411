@@ -815,7 +815,8 @@ public class GenerateMarkedFloorsDFMASingleItem : MultistepObservableAction<Gene
         double heightLimit = _dto.ScaledSheetPrintableHeight;
 
         // Define proportional, tightly packed layout gaps
-        double itemGap = 1.0;
+        //double itemGap = 1.0;
+        double itemGap = 0.0;
         double sheetGap = widthLimit * 0.05;
         if (sheetGap < 5.0) sheetGap = 5.0;
 
@@ -954,6 +955,141 @@ public class GenerateMarkedFloorsDFMASingleItem : MultistepObservableAction<Gene
     }
 
 
+    //public void GenerateSheetsForArrangedGroups(List<string> _telemetry)
+    //{
+    //    Document doc = _doc;
+
+    //    if (_dto.GeneratedSheetIds == null)
+    //        _dto.GeneratedSheetIds = new List<ElementId>();
+
+    //    double sheetCenterX = _dto.ScaledSheetHorizontalMargin + (_dto.ScaledSheetPrintableWidth / 2.0);
+    //    double sheetCenterY = _dto.ScaledSheetVerticalMargin + (_dto.ScaledSheetPrintableHeight / 2.0);
+
+    //    XYZ sheetPlacementPoint = new XYZ(sheetCenterX, sheetCenterY, 0);
+
+    //    ViewFamilyType view3DType = new FilteredElementCollector(doc)
+    //        .OfClass(typeof(ViewFamilyType))
+    //        .Cast<ViewFamilyType>()
+    //        .FirstOrDefault(vft => vft.ViewFamily == ViewFamily.ThreeDimensional);
+
+    //    // ==========================================
+    //    // CREATE A SMALL TEXT NOTE TYPE FOR THE SHEET
+    //    // ==========================================
+    //    TextNoteType smallTextType = new FilteredElementCollector(doc)
+    //        .OfClass(typeof(TextNoteType))
+    //        .Cast<TextNoteType>()
+    //        .FirstOrDefault(t => t.Name == "DFMA_Small_Label");
+
+    //    if (smallTextType == null)
+    //    {
+    //        TextNoteType defaultTextType = new FilteredElementCollector(doc)
+    //            .OfClass(typeof(TextNoteType))
+    //            .Cast<TextNoteType>()
+    //            .FirstOrDefault();
+
+    //        if (defaultTextType != null)
+    //        {
+    //            smallTextType = defaultTextType.Duplicate("DFMA_Small_Label") as TextNoteType;
+    //            // Set text size to 1.5mm (1/16") which is approx 0.0052 feet in internal units
+    //            smallTextType.get_Parameter(BuiltInParameter.TEXT_SIZE)?.Set(_dto.UnscaledPieceCodeTextSizeInInternalUnits);
+    //        }
+    //    }
+
+    //    if (view3DType == null) return;
+
+    //    int sheetCount = 0;
+
+    //    foreach (var pieceGroup in _dto.ArrangedSheets)
+    //    {
+    //        if (pieceGroup.Count == 0) continue;
+
+    //        List<ElementId> groupIds = pieceGroup
+    //            .Where(p => p.DirectShape != null)
+    //            .Select(p => p.DirectShape.Id)
+    //            .ToList();
+
+    //        if (groupIds.Count == 0) continue;
+
+    //        ViewSheet sheet = ViewSheet.Create(doc, _dto.SheetFamilySymbol.Id);
+    //        sheet.Name = $"DFMA Cut File - Bed {sheetCount + 1}";
+    //        sheet.SheetNumber = $"FAB-{sheetCount + 1:D3}";
+
+    //        View3D view = View3D.CreateIsometric(doc, view3DType.Id);
+
+    //        view.Scale = (int)_dto.FabricationScale;
+
+    //        ViewOrientation3D topOrientation = new ViewOrientation3D(
+    //            XYZ.BasisZ,
+    //            XYZ.BasisY,
+    //            XYZ.BasisZ.Negate()
+    //        );
+    //        view.SetOrientation(topOrientation);
+
+    //        view.IsolateElementsTemporary(groupIds);
+    //        view.ConvertTemporaryHideIsolateToPermanent();
+
+    //        BoundingBoxXYZ combinedBBox = GetCombinedBoundingBox(pieceGroup, view);
+    //        XYZ combinedCenter = XYZ.Zero;
+
+    //        if (combinedBBox != null)
+    //        {
+    //            combinedCenter = (combinedBBox.Min + combinedBBox.Max) / 2.0;
+
+    //            double padding = 0.5;
+    //            combinedBBox.Min -= new XYZ(padding, padding, padding);
+    //            combinedBBox.Max += new XYZ(padding, padding, padding);
+
+    //            view.CropBox = combinedBBox;
+    //            view.CropBoxActive = true;
+    //            view.CropBoxVisible = false;
+    //        }
+
+    //        if (Viewport.CanAddViewToSheet(doc, sheet.Id, view.Id))
+    //        {
+    //            Viewport.Create(doc, sheet.Id, view.Id, sheetPlacementPoint);
+    //            _dto.GeneratedSheetIds.Add(sheet.Id);
+    //            sheetCount++;
+
+    //            // ==========================================
+    //            // DRAW THE SMALL TEXT ON THE SHEET
+    //            // ==========================================
+    //            if (smallTextType != null && combinedBBox != null)
+    //            {
+    //                foreach (var piece in pieceGroup)
+    //                {
+    //                    if (piece.DirectShape == null) continue;
+
+    //                    GetTightBoundsFromElement(piece.DirectShape, out double minX, out double maxX, out double minY, out double maxY, out double minZ, out double maxZ);
+    //                    if (minX == double.MaxValue) continue;
+
+    //                    XYZ pieceCenter3D = new XYZ((minX + maxX) / 2.0, (minY + maxY) / 2.0, 0);
+
+    //                    double sheetOffsetX = (pieceCenter3D.X - combinedCenter.X) / _dto.FabricationScale;
+    //                    double sheetOffsetY = (pieceCenter3D.Y - combinedCenter.Y) / _dto.FabricationScale;
+
+    //                    XYZ textSheetLocation = new XYZ(
+    //                        sheetPlacementPoint.X + sheetOffsetX,
+    //                        sheetPlacementPoint.Y + sheetOffsetY,
+    //                        0
+    //                    );
+
+    //                    string pieceCode = piece.DirectShape.get_Parameter(BuiltInParameter.ALL_MODEL_MARK)?.AsString() ?? "Unknown";
+
+    //                    TextNoteOptions textOpts = new TextNoteOptions(smallTextType.Id)
+    //                    {
+    //                        HorizontalAlignment = HorizontalTextAlignment.Center,
+    //                        TypeId = smallTextType.Id
+    //                    };
+
+    //                    TextNote.Create(doc, sheet.Id, textSheetLocation, pieceCode, textOpts);
+    //                }
+    //            }
+    //        }
+    //    }
+
+    //    _telemetry.Add($"Successfully generated and wrote 8-digit codes on {sheetCount} grouped DFMA fabrication sheets.");
+    //}
+
     public void GenerateSheetsForArrangedGroups(List<string> _telemetry)
     {
         Document doc = _doc;
@@ -961,8 +1097,9 @@ public class GenerateMarkedFloorsDFMASingleItem : MultistepObservableAction<Gene
         if (_dto.GeneratedSheetIds == null)
             _dto.GeneratedSheetIds = new List<ElementId>();
 
-        double sheetCenterX = _dto.ScaledSheetHorizontalMargin + (_dto.ScaledSheetPrintableWidth / 2.0);
-        double sheetCenterY = _dto.ScaledSheetVerticalMargin + (_dto.ScaledSheetPrintableHeight / 2.0);
+        // FIX: Use the unscaled paper dimensions to locate the physical center of the ViewSheet
+        double sheetCenterX = _dto.UnscaledSheetHorizontalMargin + (_dto.UnscaledSheetPrintableWidth / 2.0);
+        double sheetCenterY = _dto.UnscaledSheetVerticalMargin + (_dto.UnscaledSheetPrintableHeight / 2.0);
 
         XYZ sheetPlacementPoint = new XYZ(sheetCenterX, sheetCenterY, 0);
 
@@ -1015,6 +1152,7 @@ public class GenerateMarkedFloorsDFMASingleItem : MultistepObservableAction<Gene
 
             View3D view = View3D.CreateIsometric(doc, view3DType.Id);
 
+            // Revit naturally handles the scale here (1:20) so the 16ft model fits the 10inch paper
             view.Scale = (int)_dto.FabricationScale;
 
             ViewOrientation3D topOrientation = new ViewOrientation3D(
@@ -1032,6 +1170,7 @@ public class GenerateMarkedFloorsDFMASingleItem : MultistepObservableAction<Gene
 
             if (combinedBBox != null)
             {
+                // Note: BoundingBox centers are returned in 1:1 Model Space
                 combinedCenter = (combinedBBox.Min + combinedBBox.Max) / 2.0;
 
                 double padding = 0.5;
@@ -1045,6 +1184,7 @@ public class GenerateMarkedFloorsDFMASingleItem : MultistepObservableAction<Gene
 
             if (Viewport.CanAddViewToSheet(doc, sheet.Id, view.Id))
             {
+                // This now properly places the viewport on the physical paper
                 Viewport.Create(doc, sheet.Id, view.Id, sheetPlacementPoint);
                 _dto.GeneratedSheetIds.Add(sheet.Id);
                 sheetCount++;
@@ -1063,6 +1203,8 @@ public class GenerateMarkedFloorsDFMASingleItem : MultistepObservableAction<Gene
 
                         XYZ pieceCenter3D = new XYZ((minX + maxX) / 2.0, (minY + maxY) / 2.0, 0);
 
+                        // Because the BoundingBox is in 1:1 Model Space, you correctly divide it by FabricationScale
+                        // to convert that distance into Paper Space inches/mm!
                         double sheetOffsetX = (pieceCenter3D.X - combinedCenter.X) / _dto.FabricationScale;
                         double sheetOffsetY = (pieceCenter3D.Y - combinedCenter.Y) / _dto.FabricationScale;
 
@@ -1088,6 +1230,7 @@ public class GenerateMarkedFloorsDFMASingleItem : MultistepObservableAction<Gene
 
         _telemetry.Add($"Successfully generated and wrote 8-digit codes on {sheetCount} grouped DFMA fabrication sheets.");
     }
+
 
     /// <summary>
     /// Calculates a single overarching BoundingBoxXYZ for a grouped list of elements.

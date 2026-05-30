@@ -51,7 +51,8 @@ public class DFMA_PlacePiecesByRowsAndColums : MultistepObservableAction<DFMA_Pl
 
             // INHERIT the 8-digit code, but ADD A PREFIX so Revit doesn't complain about duplicates!
             string originalCode = item.DirectShape?.Name ?? $"UNKNOWN_{pieceIndex:D2}";
-            string pieceCode = $"FAB-{originalCode}";
+
+            string pieceCode = $"F-{originalCode}";
 
             var face = item.DirectShapeLeadFace;
             if (face == null) continue;
@@ -105,6 +106,7 @@ public class DFMA_PlacePiecesByRowsAndColums : MultistepObservableAction<DFMA_Pl
             if (markParam != null && !markParam.IsReadOnly)
             {
                 markParam.Set(pieceCode);
+                _stateTrace.Add($"Flattened Sheet Piece created: Assigned Mark '{pieceCode}' (Original: {originalCode})");
             }
 
             result.Add(displacedDirectShape);

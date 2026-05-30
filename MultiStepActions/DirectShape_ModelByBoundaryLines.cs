@@ -40,6 +40,7 @@ public class DirectShape_ModelPlanarByBoundaryLines : MultistepObservableAction<
     public void GenerateShapeFabricationCode(List<string> _stateTrace)
     {
         _dto.FabricationCode = Guid.NewGuid().ToString("N").Substring(0, 8).ToUpper();
+        _stateTrace.Add($"Original Piece Code Generated: {_dto.FabricationCode}");
     }
 
     public void AdjustLineHeight(List<string> _stateTrace)
